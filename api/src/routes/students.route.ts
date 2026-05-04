@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import bcrypt from "bcryptjs";
 import { verifyJWT } from "../middleware/auth";
 import { checkRole } from "../middleware/role";
 import { validate } from "../middleware/validate";
+import { generateUniqueUserCode } from "../lib/userCode";
 
 const router = Router();
 
@@ -12,17 +14,16 @@ const studentSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
   gender: z.enum(["L", "P"]),
   birthDate: z.string().min(1, "Tanggal lahir wajib diisi"),
-  address: z.string().min(1, "Alamat wajib diisi"),
-  phone: z.string().min(1, "Telepon wajib diisi"),
-  gradeId: z.number().int().positive(),
-  guardianId: z.number().int().positive().optional().nullable(),
+  address: z.string().min(1, "Alamat wajib diisi").optional().or(z.literal("")),
+  phone: z.string().min(1, "Telepon wajib diisi").optional().or(z.literal("")),
+  classId: z.coerce.number().int().positive("Kelas harus dipilih"),
   status: z.enum(["active", "inactive"]).optional(),
 });
 
 // GET /api/students
 router.get("/", verifyJWT, async (req: Request, res: Response) => {
   try {
-    const { search, grade } = req.query;
+    const { search, className } = req.query;
     const where: any = {};
 
     if (search) {
@@ -31,38 +32,48 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
         { nis: { contains: String(search) } },
       ];
     }
-    if (grade) {
-      where.grade = { name: String(grade) };
+    if (className) {
+      where.class = { name: String(className) };
     }
 
     const students = await prisma.student.findMany({
       where,
       include: {
-        grade: { select: { id: true, name: true } },
-        guardian: { select: { id: true, name: true } },
+        class: { select: { id: true, name: true } },
+        guardians: { select: { id: true, name: true } },
       },
       orderBy: { name: "asc" },
     });
 
-    const result = students.map((s) => ({
-      id: s.id,
-      nis: s.nis,
-      name: s.name,
-      gender: s.gender,
-      birthDate: s.birthDate.toISOString().split("T")[0],
-      address: s.address,
-      phone: s.phone,
-      gradeId: s.gradeId,
-      gradeName: s.grade.name,
-      status: s.status,
-      guardianId: s.guardianId,
-      guardianName: s.guardian?.name || null,
-    }));
+    // Ambil data userCode dari tabel User berdasarkan NIS
+    const nisList = students.map(s => s.nis);
+    const users = await prisma.user.findMany({
+      where: { role: "student", nipNis: { in: nisList } },
+      select: { nipNis: true, userCode: true }
+    });
 
-    res.json({ data: result, total: result.length });
+    const result = students.map((s) => {
+      const user = users.find(u => u.nipNis === s.nis);
+      return {
+        id: s.id,
+        nis: s.nis,
+        name: s.name,
+        gender: s.gender,
+        birthDate: s.birthDate.toISOString().split("T")[0],
+        address: s.address,
+        phone: s.phone,
+        classId: s.classId,
+        className: s.class.name,
+        status: s.status,
+        userCode: user?.userCode || null,
+        guardians: s.guardians.map((g) => ({ id: g.id, name: g.name })),
+      };
+    });
+
+    res.json({ success: true, data: result, total: result.length });
   } catch (error) {
-    console.error("Get students error:", error);
-    res.status(500).json({ message: "Terjadi kesalahan server" });
+    console.error("[Students] GET error:", error);
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
   }
 });
 
@@ -72,73 +83,124 @@ router.get("/:id", verifyJWT, async (req: Request, res: Response) => {
     const student = await prisma.student.findUnique({
       where: { id: Number(req.params.id) },
       include: {
-        grade: { select: { id: true, name: true } },
-        guardian: { select: { id: true, name: true } },
+        class: { select: { id: true, name: true } },
+        guardians: { select: { id: true, name: true, phone: true, email: true } },
       },
     });
     if (!student) {
-      res.status(404).json({ message: "Siswa tidak ditemukan" });
+      res.status(404).json({ success: false, message: "Siswa tidak ditemukan" });
       return;
     }
-    res.json({ data: student });
+    res.json({ success: true, data: student });
   } catch (error) {
-    res.status(500).json({ message: "Terjadi kesalahan server" });
+    console.error("[Students] GET by ID error:", error);
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
   }
 });
 
 // POST /api/students
-router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(studentSchema), async (req: Request, res: Response) => {
-  try {
-    const data = req.body;
-    const student = await prisma.student.create({
-      data: {
-        ...data,
-        birthDate: new Date(data.birthDate),
-      },
-    });
-    res.status(201).json({ message: "Siswa berhasil ditambahkan", data: student });
-  } catch (error: any) {
-    if (error.code === "P2002") {
-      res.status(400).json({ message: "NIS sudah digunakan" });
-      return;
+router.post(
+  "/",
+  verifyJWT,
+  checkRole("super_admin", "admin"),
+  validate(studentSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const data = req.body;
+      const { nis, name } = data;
+
+      // 1. Generate unique 3-digit userCode otomatis
+      const userCode = await generateUniqueUserCode("student");
+
+      // 2. Generate Default Password (e.g. S001)
+      const defaultPassword = `S${userCode}`;
+      
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(defaultPassword, salt);
+
+      // 3. Gunakan Transaction untuk membuat Student dan User Akun sekaligus
+      const result = await prisma.$transaction(async (tx) => {
+        // Buat Akun User untuk Login
+        await tx.user.create({
+          data: {
+            name,
+            nipNis: nis,
+            userCode,
+            password: hashedPassword,
+            role: "student",
+          },
+        });
+
+        // Buat Profil Student
+        const student = await tx.student.create({
+          data: {
+            ...data,
+            birthDate: new Date(data.birthDate),
+          },
+        });
+
+        return { student };
+      });
+
+      res.status(201).json({ 
+        success: true, 
+        message: `Siswa berhasil ditambahkan. Akun login otomatis dibuat dengan Password: ${defaultPassword}`, 
+        data: result.student 
+      });
+    } catch (error: any) {
+      if (error.code === "P2002") {
+        res.status(400).json({ success: false, message: "NIS sudah digunakan di sistem" });
+        return;
+      }
+      console.error("[Students] POST error:", error);
+      res.status(500).json({ success: false, message: "Terjadi kesalahan server saat membuat data siswa" });
     }
-    console.error("Create student error:", error);
-    res.status(500).json({ message: "Terjadi kesalahan server" });
   }
-});
+);
 
 // PUT /api/students/:id
-router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(studentSchema.partial()), async (req: Request, res: Response) => {
-  try {
-    const data = req.body;
-    if (data.birthDate) data.birthDate = new Date(data.birthDate);
+router.put(
+  "/:id",
+  verifyJWT,
+  checkRole("super_admin", "admin"),
+  validate(studentSchema.partial()),
+  async (req: Request, res: Response) => {
+    try {
+      const data = req.body;
+      if (data.birthDate) data.birthDate = new Date(data.birthDate);
 
-    const student = await prisma.student.update({
-      where: { id: Number(req.params.id) },
-      data,
-    });
-    res.json({ message: "Siswa berhasil diperbarui", data: student });
-  } catch (error: any) {
-    if (error.code === "P2025") {
-      res.status(404).json({ message: "Siswa tidak ditemukan" });
-      return;
+      const student = await prisma.student.update({
+        where: { id: Number(req.params.id) },
+        data,
+      });
+      res.json({ success: true, message: "Siswa berhasil diperbarui", data: student });
+    } catch (error: any) {
+      if (error.code === "P2025") {
+        res.status(404).json({ success: false, message: "Siswa tidak ditemukan" });
+        return;
+      }
+      res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
     }
-    res.status(500).json({ message: "Terjadi kesalahan server" });
   }
-});
+);
 
 // DELETE /api/students/:id
-router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
-  try {
-    await prisma.student.delete({ where: { id: Number(req.params.id) } });
-    res.json({ message: "Siswa berhasil dihapus" });
-  } catch (error: any) {
-    if (error.code === "P2025") {
-      res.status(404).json({ message: "Siswa tidak ditemukan" });
-      return;
+router.delete(
+  "/:id",
+  verifyJWT,
+  checkRole("super_admin", "admin"),
+  async (req: Request, res: Response) => {
+    try {
+      await prisma.student.delete({ where: { id: Number(req.params.id) } });
+      res.json({ success: true, message: "Siswa berhasil dihapus" });
+    } catch (error: any) {
+      if (error.code === "P2025") {
+        res.status(404).json({ success: false, message: "Siswa tidak ditemukan" });
+        return;
+      }
+      res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
     }
-    res.status(500).json({ message: "Terjadi kesalahan server" });
   }
-});
+);
 
 export default router;

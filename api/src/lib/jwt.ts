@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 
 const SECRET = process.env.JWT_SECRET || "fallback_secret";
 const EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
@@ -9,7 +9,10 @@ export interface JwtPayload {
 }
 
 export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, SECRET, { expiresIn: EXPIRES_IN });
+  const options: SignOptions = {
+    expiresIn: EXPIRES_IN as jwt.SignOptions["expiresIn"],
+  };
+  return jwt.sign(payload, SECRET, options);
 }
 
 export function verifyToken(token: string): JwtPayload {

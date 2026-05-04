@@ -18,6 +18,7 @@
     "bcryptjs": "^2",
     "cors": "^2",
     "dotenv": "^16",
+    "exceljs": "^4.4.0",
     "express": "^4",
     "jsonwebtoken": "^9",
     "multer": "^1",

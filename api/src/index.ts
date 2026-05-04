@@ -8,12 +8,17 @@ import studentsRouter from "./routes/students.route";
 import teachersRouter from "./routes/teachers.route";
 import guardiansRouter from "./routes/guardians.route";
 import academicYearsRouter from "./routes/academic-years.route";
-import gradesRouter from "./routes/grades.route";
+import classesRouter from "./routes/classes.route";
 import subjectsRouter from "./routes/subjects.route";
 import schedulesRouter from "./routes/schedules.route";
 import attendancesRouter from "./routes/attendances.route";
-import scoresRouter from "./routes/scores.route";
+import gradesRouter from "./routes/grades.route";
 import announcementsRouter from "./routes/announcements.route";
+import usersRouter from "./routes/user.route";
+import dashboardRouter from "./routes/dashboard.route";
+import hubTeacherRouter from "./routes/hub-teacher.route";
+import hubRouter from "./routes/hub.route";
+import learningModulesRouter from "./routes/learning-modules.route";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -34,12 +39,17 @@ app.use("/api/students", studentsRouter);
 app.use("/api/teachers", teachersRouter);
 app.use("/api/guardians", guardiansRouter);
 app.use("/api/academic-years", academicYearsRouter);
-app.use("/api/grades", gradesRouter);
+app.use("/api/classes", classesRouter);
 app.use("/api/subjects", subjectsRouter);
 app.use("/api/schedules", schedulesRouter);
 app.use("/api/attendances", attendancesRouter);
-app.use("/api/scores", scoresRouter);
+app.use("/api/grades", gradesRouter);
 app.use("/api/announcements", announcementsRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/dashboard", dashboardRouter);
+app.use("/api/hub/teacher/learning-modules", learningModulesRouter);
+app.use("/api/hub/teacher", hubTeacherRouter);
+app.use("/api/hub", hubRouter);
 
 // Start
 app.listen(PORT, () => {
