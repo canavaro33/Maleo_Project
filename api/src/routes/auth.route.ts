@@ -21,7 +21,7 @@ const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Password saat ini wajib diisi"),
   newPassword: z
     .string()
-    .min(8, "Password baru minimal 8 karakter")
+    .min(8, "Password minimal 8 karakter")
     .regex(/[A-Z]/, "Password harus mengandung minimal 1 huruf besar")
     .regex(/[0-9]/, "Password harus mengandung minimal 1 angka"),
 });
@@ -65,7 +65,7 @@ router.post("/login", validate(loginSchema), async (req, res: Response) => {
     // Generate JWT token dengan payload berisi id dan role
     const token = signToken({ id: user.id, role: user.role });
 
-    // Response berhasil
+    // Response berhasil — sertakan force_change_password
     res.json({
       success: true,
       message: "Login berhasil",
@@ -77,6 +77,7 @@ router.post("/login", validate(loginSchema), async (req, res: Response) => {
           email: user.email,
           nipNis: user.nipNis,
           role: user.role,
+          force_change_password: user.force_change_password,
         },
       },
     });
@@ -102,6 +103,7 @@ router.get("/me", verifyJWT, async (req: AuthRequest, res: Response) => {
         name: true,
         email: true,
         role: true,
+        force_change_password: true,
         createdAt: true,
       },
     });
@@ -154,20 +156,31 @@ router.put(
       // Verifikasi password saat ini
       const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
       if (!isCurrentPasswordValid) {
-        res.status(401).json({
+        res.status(400).json({
           success: false,
-          message: "Password saat ini salah",
+          message: "Password lama tidak sesuai",
+        });
+        return;
+      }
+
+      // Password baru tidak boleh sama dengan lama
+      if (currentPassword === newPassword) {
+        res.status(400).json({
+          success: false,
+          message: "Password baru tidak boleh sama dengan password lama",
         });
         return;
       }
 
       // Hash password baru dan simpan
-      const salt = await bcrypt.genSalt(12);
-      const hashedPassword = await bcrypt.hash(newPassword, salt);
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
 
       await prisma.user.update({
         where: { id: user.id },
-        data: { password: hashedPassword },
+        data: {
+          password: hashedPassword,
+          force_change_password: false,
+        },
       });
 
       res.json({
@@ -180,6 +193,63 @@ router.put(
         success: false,
         message: "Terjadi kesalahan server",
       });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────
+// PATCH /api/auth/change-password
+// Alias — menerima oldPassword ATAU currentPassword
+// ──────────────────────────────────────────────
+router.patch(
+  "/change-password",
+  verifyJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const body = req.body as any;
+      const oldPassword: string | undefined = body.oldPassword ?? body.currentPassword;
+      const newPassword: string | undefined = body.newPassword;
+
+      // Validasi manual
+      if (!oldPassword || !newPassword) {
+        res.status(400).json({ success: false, message: "oldPassword dan newPassword wajib diisi" });
+        return;
+      }
+      if (newPassword.length < 8) {
+        res.status(400).json({ success: false, message: "Password minimal 8 karakter" });
+        return;
+      }
+      if (oldPassword === newPassword) {
+        res.status(400).json({ success: false, message: "Password baru tidak boleh sama dengan password lama" });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+      if (!user) {
+        res.status(404).json({ success: false, message: "User tidak ditemukan" });
+        return;
+      }
+
+      const isValid = await bcrypt.compare(oldPassword, user.password);
+      if (!isValid) {
+        res.status(400).json({ success: false, message: "Password lama tidak sesuai" });
+        return;
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          force_change_password: false,
+        },
+      });
+
+      res.json({ success: true, message: "Password berhasil diubah" });
+    } catch (error) {
+      console.error("[Auth] PATCH Change password error:", error);
+      res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
     }
   }
 );

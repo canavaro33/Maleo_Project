@@ -57,15 +57,27 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(user));
       Cookies.set("user_role", user.role, { expires: 7 });
 
+      // Force Change Password — cek sebelum redirect ke dashboard (Kecuali Admin & Super Admin)
+      if (
+        user.force_change_password &&
+        user.role !== "admin" &&
+        user.role !== "super_admin"
+      ) {
+        router.push("/force-change-password");
+        return;
+      }
+
       // Role-based Redirect
       if (user.role === "super_admin" || user.role === "admin") {
-        router.push("/dashboard");
+        router.push("/admin/dashboard");
+      } else if (user.role === "kepala_sekolah") {
+        router.push("/kepala-sekolah/principal-dashboard");
       } else if (user.role === "teacher" || user.role === "student") {
         router.push("/hub/dashboard");
       } else if (user.role === "guardian") {
         router.push("/connect/dashboard");
       } else {
-        router.push("/dashboard");
+        router.push("/admin/dashboard");
       }
     } catch (err: any) {
       setError(err.message || "Terjadi kesalahan saat login");

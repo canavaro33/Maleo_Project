@@ -17,6 +17,7 @@ datasource db {
 enum Role {
   super_admin
   admin
+  kepala_sekolah
   teacher
   student
   guardian
@@ -75,15 +76,16 @@ enum MaterialType {
 // ──────────────────────────────────────────────
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String?  @unique
-  nipNis    String?  @unique @map("nip_nis")
-  userCode  String?  @map("user_code")
-  password  String
-  role      Role     @default(admin)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                    Int      @id @default(autoincrement())
+  name                  String
+  email                 String?  @unique
+  nipNis                String?  @unique @map("nip_nis")
+  userCode              String?  @map("user_code")
+  password              String
+  role                  Role     @default(admin)
+  force_change_password Boolean  @default(true)
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   @@map("users")
 }

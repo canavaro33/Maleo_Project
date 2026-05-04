@@ -20,6 +20,7 @@ async function main() {
       email: adminEmail,
       password: adminPassword,
       role: "super_admin",
+      force_change_password: false,
     },
   });
 

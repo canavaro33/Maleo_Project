@@ -19,6 +19,7 @@ import dashboardRouter from "./routes/dashboard.route";
 import hubTeacherRouter from "./routes/hub-teacher.route";
 import hubRouter from "./routes/hub.route";
 import learningModulesRouter from "./routes/learning-modules.route";
+import principalsRouter from "./routes/principals.route";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -45,6 +46,7 @@ app.use("/api/schedules", schedulesRouter);
 app.use("/api/attendances", attendancesRouter);
 app.use("/api/grades", gradesRouter);
 app.use("/api/announcements", announcementsRouter);
+app.use("/api/principals", principalsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/hub/teacher/learning-modules", learningModulesRouter);

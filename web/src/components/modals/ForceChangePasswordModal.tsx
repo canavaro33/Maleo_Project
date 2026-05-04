@@ -10,18 +10,22 @@ interface ForceChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onSubmit: (oldPassword: string, newPassword: string) => Promise<void>;
 }
 
 export const ForceChangePasswordModal = ({ 
   isOpen, 
   onClose, 
-  onSuccess 
+  onSuccess,
+  onSubmit,
 }: ForceChangePasswordModalProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
+    oldPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -44,6 +48,12 @@ export const ForceChangePasswordModal = ({
     setLoading(true);
     setError("");
 
+    if (!formData.oldPassword) {
+      setError("Password lama wajib diisi");
+      setLoading(false);
+      return;
+    }
+
     const passwordError = validatePassword(formData.newPassword);
     if (passwordError) {
       setError(passwordError);
@@ -58,13 +68,12 @@ export const ForceChangePasswordModal = ({
     }
 
     try {
-      // Placeholder for API call
-      console.log("Password changed:", formData.newPassword);
-    onSuccess();
-      // Reset form
-      setFormData({ newPassword: "", confirmPassword: "" });
+      await onSubmit(formData.oldPassword, formData.newPassword);
+      setFormData({ oldPassword: "", newPassword: "", confirmPassword: "" });
+      onSuccess();
     } catch (err: any) {
-      setError("Gagal mengganti password");
+      // Tampilkan pesan error dari API response, modal tetap terbuka
+      setError(err?.response?.data?.message ?? err?.message ?? "Gagal mengganti password");
     } finally {
       setLoading(false);
     }
@@ -87,6 +96,25 @@ export const ForceChangePasswordModal = ({
             {error}
           </div>
         )}
+
+        <Input
+          label="Password Lama"
+          type={showOldPassword ? "text" : "password"}
+          placeholder="Masukkan password saat ini"
+          value={formData.oldPassword}
+          onChange={(e) => setFormData({ ...formData, oldPassword: e.target.value })}
+          icon={null}
+          iconRight={
+            <button
+              type="button"
+              onClick={() => setShowOldPassword(!showOldPassword)}
+              className="inline-flex items-center justify-center opacity-40 text-muted-foreground hover:opacity-100 hover:text-foreground transition-all duration-200 focus:outline-none"
+            >
+              {showOldPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          }
+          required
+        />
 
         <Input
           label="Password Baru"
