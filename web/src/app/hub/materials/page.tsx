@@ -374,7 +374,7 @@ export default function MaterialsPage() {
             </div>
             <h3 className="text-lg font-bold text-foreground">Tiada Modul Ditemui</h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto mt-2">
-              {isTeacher ? "Sila pilih mata pelajaran atau buat modul baharu." : "Guru anda belum menerbitkan modul pembelajaran bagi subjek ini."}
+              {isTeacher ? "Silahkan pilih mata pelajaran atau buat modul baharu." : "Guru anda belum menerbitkan modul pembelajaran bagi subjek ini."}
             </p>
           </div>
         )}
@@ -482,7 +482,7 @@ export default function MaterialsPage() {
             <Card className="p-4 bg-indigo-600 text-white shadow-xl max-w-xs border-none animate-in slide-in-from-bottom-4">
               <h5 className="font-bold text-sm mb-1">Status Kurikulum</h5>
               <p className="text-[10px] opacity-90 leading-relaxed">
-                Anda telah menggunakan {modules.length}/5 slot modul bagi mata pelajaran ini. Setiap modul dihadkan kepada 7 sesi pertemuan.
+                Anda telah menggunakan {modules.length}/5 slot modul bagi mata pelajaran ini. Setiap modul dihadirkan kepada 7 sesi pertemuan.
               </p>
             </Card>
           </div>

@@ -27,14 +27,14 @@ const menuItems = [
     label: "Pembelajaran",
     items: [
       { name: "Materi", href: "/hub/materials", icon: BookOpen },
-      { name: "Tugas", href: "/hub/tasks", icon: ClipboardList },
+      { name: "Tugas", href: "/hub/assignments", icon: ClipboardList },
     ],
   },
   {
     label: "Akademik",
     items: [
-      { name: "Nilai", href: "/hub/scores", icon: Award },
-      { name: "Kehadiran", href: "/hub/attendances", icon: ClipboardCheck },
+      { name: "Nilai", href: "/hub/grades", icon: Award },
+      { name: "Kehadiran", href: "/hub/attendance", icon: ClipboardCheck },
       { name: "Jadwal", href: "/hub/schedules", icon: Clock },
     ],
   },

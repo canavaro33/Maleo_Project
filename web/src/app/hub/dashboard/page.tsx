@@ -1,5 +1,6 @@
 "use client";
 
+import { ForceChangePasswordModal } from "@/components/modals/ForceChangePasswordModal"
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { BookOpen, ClipboardCheck, Clock, Award, Loader2, RefreshCcw } from "lucide-react";
@@ -7,6 +8,7 @@ import { apiService } from "@/services/apiService";
 import { formatDate } from "@/lib/utils";
 
 export default function HubDashboard() {
+  const [showModal, setShowModal] = useState(true);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +51,11 @@ export default function HubDashboard() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-muted-foreground">
+        <ForceChangePasswordModal 
+      isOpen={showModal} 
+      onClose={() => {}} 
+      onSuccess={() => setShowModal(false)} 
+    />
         <Loader2 className="animate-spin mb-4" size={40} />
         <p className="animate-pulse">Menyiapkan dashboard Anda...</p>
       </div>
