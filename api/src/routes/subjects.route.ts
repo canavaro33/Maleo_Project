@@ -19,6 +19,19 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
   try {
     const { search } = req.query;
     const where: any = {};
+    
+    // Hard filtering for teacher role
+    if (req.user?.role === "teacher") {
+      // Find teacherId from User
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { teacherId: true }
+      });
+      if (user?.teacherId) {
+        where.teacherId = user.teacherId;
+      }
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: String(search), mode: "insensitive" } },

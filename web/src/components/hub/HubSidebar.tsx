@@ -14,6 +14,8 @@ import {
   Megaphone,
   ChevronLeft,
   ChevronRight,
+  PlusCircle,
+  UserCircle,
 } from "lucide-react";
 
 const menuItemsTeacher = [
@@ -78,24 +80,84 @@ const menuItemsStudent = [
   },
 ];
 
+const menuItemsGuardian = [
+  {
+    label: "Menu Utama",
+    items: [
+      { name: "Dashboard", href: "/hub/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Pembelajaran",
+    items: [
+      { name: "Materi Anak", href: "/hub/materials", icon: BookOpen },
+    ],
+  },
+  {
+    label: "Akademik",
+    items: [
+      { name: "Nilai Anak", href: "/hub/grades", icon: Award },
+      { name: "Kehadiran Anak", href: "/hub/attendance", icon: ClipboardCheck },
+      { name: "Jadwal Anak", href: "/hub/schedules", icon: Clock },
+    ],
+  },
+];
+
+const menuItemsPrincipal = [
+  {
+    label: "Menu Utama",
+    items: [
+      { name: "Dashboard", href: "/hub/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Akademik",
+    items: [
+      { name: "Laporan Nilai", href: "/hub/grades", icon: Award },
+      { name: "Laporan Kehadiran", href: "/hub/attendance", icon: ClipboardCheck },
+    ],
+  },
+  {
+    label: "Informasi",
+    items: [
+      { name: "Pengumuman", href: "/hub/announcements", icon: Megaphone },
+    ],
+  },
+];
+
 export function HubSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const [isTeacher, setIsTeacher] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        setIsTeacher(parsed.role === "teacher");
+        setUserRole(parsed.role);
       } catch (e) {
         console.error("Failed to parse user data");
       }
     }
   }, []);
 
-  const menuItems = isTeacher ? menuItemsTeacher : menuItemsStudent;
+  const getMenuItems = () => {
+    switch (userRole) {
+      case "teacher":
+        return menuItemsTeacher;
+      case "student":
+        return menuItemsStudent;
+      case "guardian":
+        return menuItemsGuardian;
+      case "kepala_sekolah":
+        return menuItemsPrincipal;
+      default:
+        return menuItemsStudent;
+    }
+  };
+
+  const menuItems = getMenuItems();
 
   return (
     <aside

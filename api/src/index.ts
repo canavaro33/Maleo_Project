@@ -22,6 +22,7 @@ import learningModulesRouter from "./routes/learning-modules.route";
 import principalsRouter from "./routes/principals.route";
 import teacherAttendancesRouter from "./routes/teacher-attendances.route";
 import notificationRouter from "./routes/notification.route";
+import lmsRouter from "./routes/lms.route";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -56,6 +57,26 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/hub/teacher/learning-modules", learningModulesRouter);
 app.use("/api/hub/teacher", hubTeacherRouter);
 app.use("/api/hub", hubRouter);
+app.use("/api/lms", lmsRouter);
+
+// Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err);
+  
+  if (err instanceof Error && err.message.includes("File type not supported")) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ success: false, message: "Ukuran file terlalu besar. Maksimal 20MB." });
+  }
+
+  res.status(500).json({
+    success: false,
+    message: "Terjadi kesalahan pada server.",
+    error: process.env.NODE_ENV === "development" ? err.message : undefined
+  });
+});
 
 // Start
 app.listen(PORT, () => {

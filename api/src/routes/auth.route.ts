@@ -105,6 +105,19 @@ router.get("/me", verifyJWT, async (req: AuthRequest, res: Response) => {
         role: true,
         force_change_password: true,
         createdAt: true,
+        teacher: {
+          select: {
+            id: true,
+            subjects: { select: { id: true, name: true, code: true } },
+            homeroomClasses: { select: { id: true, name: true, level: true } }
+          }
+        },
+        student: {
+          select: {
+            id: true,
+            class: { select: { id: true, name: true } }
+          }
+        }
       },
     });
 

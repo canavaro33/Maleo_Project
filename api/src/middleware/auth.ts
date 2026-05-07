@@ -18,16 +18,22 @@ export interface AuthRequest extends Request {
  */
 export const verifyJWT = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const header = req.headers.authorization;
+  let token = "";
 
-  if (!header || !header.startsWith("Bearer ")) {
+  if (header && header.startsWith("Bearer ")) {
+    token = header.split(" ")[1];
+  } else if (req.query.token) {
+    token = String(req.query.token);
+  }
+
+  if (!token) {
+    console.log(`[Auth] Token missing for ${req.method} ${req.originalUrl}`);
     res.status(401).json({
       success: false,
       message: "Token tidak ditemukan. Silakan login terlebih dahulu.",
     });
     return;
   }
-
-  const token = header.split(" ")[1];
 
   try {
     const payload = verifyToken(token);

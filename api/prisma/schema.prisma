@@ -68,7 +68,12 @@ enum Status {
 enum MaterialType {
   pdf
   ppt
+  pptx
+  doc
+  docx
   video
+  image
+  link
 }
 
 // ──────────────────────────────────────────────
@@ -209,6 +214,7 @@ model Class {
   schedules       Schedule[]
   contents        Content[]
   assignments     Assignment[]
+  learningModules LearningModule[]
 
   @@map("classes")
 }
@@ -340,6 +346,7 @@ model LearningModule {
   subjectId      Int      @map("subject_id")
   academicYearId Int      @map("academic_year_id")
   teacherId      Int      @map("teacher_id")
+  classId        Int?     @map("class_id")
   order          Int      @default(0)
   isPublished    Boolean  @default(false) @map("is_published")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -348,6 +355,7 @@ model LearningModule {
   subject      Subject         @relation(fields: [subjectId],      references: [id])
   academicYear AcademicYear    @relation(fields: [academicYearId], references: [id])
   teacher      Teacher         @relation(fields: [teacherId],      references: [id])
+  class        Class?          @relation(fields: [classId],        references: [id])
   sessions     ModuleSession[]
 
   @@map("learning_modules")

@@ -39,6 +39,38 @@ const teacherGuard = async (req: AuthRequest, res: Response, next: any) => {
 router.use(verifyJWT);
 router.use(teacherGuard);
 
+// Ambil daftar kelas yang diajar oleh guru (dari jadwal atau wali kelas)
+router.get("/classes", async (req: any, res: Response) => {
+  try {
+    const teacherId = req.teacherId;
+
+    // Ambil kelas dari jadwal
+    const scheduleClasses = await prisma.schedule.findMany({
+      where: { teacherId },
+      select: { class: { select: { id: true, name: true } } },
+      distinct: ['classId']
+    });
+
+    // Ambil kelas dari wali kelas
+    const homeroomClasses = await prisma.class.findMany({
+      where: { homeroomTeacherId: teacherId },
+      select: { id: true, name: true }
+    });
+
+    // Gabungkan dan hapus duplikasi
+    const classesMap = new Map();
+    scheduleClasses.forEach(s => classesMap.set(s.class.id, s.class));
+    homeroomClasses.forEach(c => classesMap.set(c.id, c));
+
+    const finalClasses = Array.from(classesMap.values());
+
+    res.json({ success: true, data: finalClasses });
+  } catch (error) {
+    console.error("[Teacher Hub] Get Classes error:", error);
+    res.status(500).json({ success: false, message: "Gagal mengambil data kelas." });
+  }
+});
+
 // 5. GET /attendance (Get Students for a class)
 router.get("/attendance/students", async (req: any, res: Response) => {
   try {
