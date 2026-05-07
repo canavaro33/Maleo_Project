@@ -59,3 +59,11 @@
     text-wrap: balance;
   }
 }
+
+/* Hide browser's default password reveal button */
+@layer base {
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+  }
+}

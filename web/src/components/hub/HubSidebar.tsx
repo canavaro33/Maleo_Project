@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -14,9 +14,41 @@ import {
   Megaphone,
   ChevronLeft,
   ChevronRight,
+  PlusCircle,
 } from "lucide-react";
 
-const menuItems = [
+const menuItemsTeacher = [
+  {
+    label: "Menu Utama",
+    items: [
+      { name: "Dashboard", href: "/hub/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Pembelajaran",
+    items: [
+      { name: "Materi", href: "/hub/materials", icon: BookOpen },
+      { name: "Tugas", href: "/hub/assignments", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Akademik",
+    items: [
+      { name: "Nilai", href: "/hub/grades", icon: Award },
+      { name: "Kehadiran", href: "/hub/attendance", icon: ClipboardCheck },
+      { name: "Input Absensi", href: "/hub/absensi/input", icon: PlusCircle },
+      { name: "Jadwal", href: "/hub/schedules", icon: Clock },
+    ],
+  },
+  {
+    label: "Informasi",
+    items: [
+      { name: "Pengumuman", href: "/hub/announcements", icon: Megaphone },
+    ],
+  },
+];
+
+const menuItemsStudent = [
   {
     label: "Menu Utama",
     items: [
@@ -49,6 +81,21 @@ const menuItems = [
 export function HubSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [isTeacher, setIsTeacher] = useState(false);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        setIsTeacher(parsed.role === "teacher");
+      } catch (e) {
+        console.error("Failed to parse user data");
+      }
+    }
+  }, []);
+
+  const menuItems = isTeacher ? menuItemsTeacher : menuItemsStudent;
 
   return (
     <aside

@@ -11,8 +11,10 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, icon, iconRight, className, id, ...props }, ref) => {
+  ({ label, error, icon, iconRight, className, id, type, ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    const isPasswordType = type === "password";
+
     return (
       <div className="space-y-1.5">
         {label && (
@@ -32,6 +34,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
+            type={type}
             className={cn(
               "flex h-10 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground transition-colors",
               "placeholder:text-muted-foreground",
@@ -40,8 +43,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               icon && "pl-10",
               iconRight && "pr-10",
               error && "border-destructive focus:ring-destructive",
+              // Hide browser's password reveal button when we have custom iconRight
+              isPasswordType && iconRight && "[&::-ms-reveal]:hidden",
               className
             )}
+            autoComplete={props.autoComplete || (isPasswordType && iconRight ? "off" : undefined)}
             {...props}
           />
           {iconRight && (
