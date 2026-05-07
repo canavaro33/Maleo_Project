@@ -19,6 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  UserCircle,
+  ShieldCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
@@ -28,6 +30,12 @@ const menuItems = [
     label: "Menu Utama",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Data Master",
+    items: [
+      { name: "Data Kepala Sekolah", href: "/admin/data-master/principal", icon: ShieldCheck },
     ],
   },
   {
@@ -58,6 +66,7 @@ const menuItems = [
     label: "Lainnya",
     items: [
       { name: "Pengumuman", href: "/announcements", icon: Megaphone },
+      { name: "Profil Saya", href: "/settings/profile", icon: UserCircle },
     ],
   },
 ];

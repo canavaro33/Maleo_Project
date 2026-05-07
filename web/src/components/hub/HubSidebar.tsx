@@ -14,7 +14,6 @@ import {
   Megaphone,
   ChevronLeft,
   ChevronRight,
-  PlusCircle,
 } from "lucide-react";
 
 const menuItemsTeacher = [
@@ -74,6 +73,7 @@ const menuItemsStudent = [
     label: "Informasi",
     items: [
       { name: "Pengumuman", href: "/hub/announcements", icon: Megaphone },
+      { name: "Profil Saya", href: "/settings/profile", icon: UserCircle },
     ],
   },
 ];

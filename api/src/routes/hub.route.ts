@@ -46,7 +46,7 @@ router.get("/dashboard", async (req: any, res: Response) => {
     const dayName = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][today.getDay()];
 
     let stats = { subjects: 0, activeAssignments: 0, attendanceRate: 100, averageGrade: 0 };
-    let schedules = [];
+    let schedules: any[] = [];
 
     if (role === "teacher") {
       const teacherId = req.teacherId;
@@ -120,7 +120,7 @@ router.get("/announcements", async (req: AuthRequest, res: Response) => {
         isPublished: true,
         OR: [
           { target: "all" },
-          { target: role }
+          { target: role as any }
         ]
       },
       orderBy: { createdAt: "desc" },

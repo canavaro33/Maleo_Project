@@ -20,6 +20,8 @@ import hubTeacherRouter from "./routes/hub-teacher.route";
 import hubRouter from "./routes/hub.route";
 import learningModulesRouter from "./routes/learning-modules.route";
 import principalsRouter from "./routes/principals.route";
+import teacherAttendancesRouter from "./routes/teacher-attendances.route";
+import notificationRouter from "./routes/notification.route";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -47,6 +49,8 @@ app.use("/api/attendances", attendancesRouter);
 app.use("/api/grades", gradesRouter);
 app.use("/api/announcements", announcementsRouter);
 app.use("/api/principals", principalsRouter);
+app.use("/api/teacher-attendances", teacherAttendancesRouter);
+app.use("/api/notifications", notificationRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/hub/teacher/learning-modules", learningModulesRouter);

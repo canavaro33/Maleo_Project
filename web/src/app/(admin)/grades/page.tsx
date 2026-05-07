@@ -32,7 +32,6 @@ export default function GradesPage() {
   const [formData, setFormData] = useState({
     name: "",
     level: "",
-    group: "",
     homeroomTeacherId: "",
   });
 
@@ -61,7 +60,6 @@ export default function GradesPage() {
     setFormData({
       name: "",
       level: "",
-      group: "",
       homeroomTeacherId: "",
     });
     setIsModalOpen(true);
@@ -72,7 +70,6 @@ export default function GradesPage() {
     setFormData({
       name: grade.name,
       level: String(grade.level),
-      group: grade.group,
       homeroomTeacherId: String(grade.homeroomTeacherId),
     });
     setIsModalOpen(true);
@@ -84,10 +81,11 @@ export default function GradesPage() {
     setError("");
     setSuccess("");
 
+    const romanMap: Record<string, string> = { "7": "VII", "8": "VIII", "9": "IX", "10": "X", "11": "XI", "12": "XII" };
     const payload = {
       ...formData,
       level: Number(formData.level),
-      name: `${formData.level}-${formData.group}`,
+      name: romanMap[formData.level] || formData.level,
     };
 
     try {
@@ -194,9 +192,8 @@ export default function GradesPage() {
               <p className="text-sm font-medium">Data Guru masih kosong. Anda wajib menambahkan minimal 1 Guru di menu Data Guru untuk dijadikan Wali Kelas.</p>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Tingkat" options={[{value:"7",label:"VII"},{value:"8",label:"VIII"},{value:"9",label:"IX"}]} placeholder="Pilih tingkat" value={formData.level} onChange={e => setFormData({...formData, level: e.target.value})} required />
-            <Input label="Grup" placeholder="A, B, C..." value={formData.group} onChange={e => setFormData({...formData, group: e.target.value})} required />
+          <div className="grid grid-cols-1 gap-4">
+            <Select label="Tingkat" options={[{value:"7",label:"VII"},{value:"8",label:"VIII"},{value:"9",label:"IX"},{value:"10",label:"X"},{value:"11",label:"XI"},{value:"12",label:"XII"}]} placeholder="Pilih tingkat" value={formData.level} onChange={e => setFormData({...formData, level: e.target.value})} required />
           </div>
           <Select 
             label="Wali Kelas" 

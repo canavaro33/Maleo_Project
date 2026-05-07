@@ -7,6 +7,9 @@ export const metadata: Metadata = {
     "Sistem Informasi Akademik Sekolah — Kelola data siswa, guru, jadwal, kehadiran, dan nilai secara digital.",
 };
 
+import { Toaster } from "react-hot-toast";
+import { Providers } from "@/components/Providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -14,7 +17,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <Providers>
+          <Toaster position="top-right" />
+          {children}
+        </Providers>
+      </body>
     </html>
   );
 }

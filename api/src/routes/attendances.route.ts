@@ -15,6 +15,120 @@ const attendanceSchema = z.object({
   studentId: z.number().int().positive(),
 });
 
+const bulkSchema = z.object({
+  classId: z.number().int().positive(),
+  date: z.string().min(1),
+  records: z.array(
+    z.object({
+      studentId: z.number().int().positive(),
+      status: z.enum(["hadir", "izin", "sakit", "alpa"]),
+      note: z.string().optional().nullable(),
+    })
+  ),
+});
+
+// GET /api/attendances/by-class
+router.get("/by-class", verifyJWT, async (req: Request, res: Response) => {
+  try {
+    const { classId, date } = req.query;
+    if (!classId || !date) {
+      res.status(400).json({ success: false, message: "classId dan date diperlukan" });
+      return;
+    }
+
+    const cId = Number(classId);
+    const targetDate = new Date(String(date));
+    targetDate.setHours(0, 0, 0, 0);
+
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(targetDate.getDate() + 1);
+
+    const students = await prisma.student.findMany({
+      where: { classId: cId },
+      include: {
+        attendances: {
+          where: {
+            date: {
+              gte: targetDate,
+              lt: nextDay,
+            },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    const results = students.map((s) => {
+      const attendance = s.attendances[0]; // will be undefined if no record exists
+      return {
+        studentId: s.id,
+        nis: s.nis,
+        name: s.name,
+        status: attendance ? attendance.status : "hadir", // Default to 'hadir'
+        note: attendance ? attendance.note : "",
+      };
+    });
+
+    res.json({ success: true, data: results });
+  } catch (error) {
+    console.error("[Attendances by-class] GET error:", error);
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+  }
+});
+
+// POST /api/attendances/bulk
+router.post(
+  "/bulk",
+  verifyJWT,
+  checkRole("super_admin", "admin", "teacher"),
+  validate(bulkSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const { classId, date, records } = req.body as z.infer<typeof bulkSchema>;
+      
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(targetDate.getDate() + 1);
+
+      // Cek apakah data kehadiran sudah pernah diinput untuk tanggal dan kelas ini
+      const existingRecord = await prisma.attendance.findFirst({
+        where: {
+          date: { gte: targetDate, lt: nextDay },
+          student: { classId: classId },
+        },
+      });
+
+      if (existingRecord) {
+        res.status(400).json({
+          success: false,
+          message: "Data absensi untuk kelas dan tanggal ini sudah ada. Silakan gunakan fitur edit jika ingin mengubah.",
+        });
+        return;
+      }
+
+      const createData = records.map((record) => ({
+        studentId: record.studentId,
+        date: targetDate,
+        status: record.status,
+        note: record.note,
+      }));
+
+      await prisma.attendance.createMany({
+        data: createData,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Data absensi batch berhasil disimpan",
+      });
+    } catch (error) {
+      console.error("[Attendances bulk] POST error:", error);
+      res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+    }
+  }
+);
+
 router.get("/", verifyJWT, async (req: Request, res: Response) => {
   try {
     const { className, status, date, search } = req.query;

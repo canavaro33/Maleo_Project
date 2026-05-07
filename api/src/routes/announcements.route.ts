@@ -41,6 +41,36 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(announce
   } catch (error) { res.status(500).json({ message: "Terjadi kesalahan server" }); }
 });
 
+router.get("/recent", verifyJWT, async (req: Request, res: Response) => {
+  try {
+    const role = (req as any).user?.role;
+    
+    // Determine allowed targets based on role
+    let targets = ["all"];
+    if (role === "student") targets.push("student");
+    else if (role === "teacher") targets.push("teacher");
+    else if (role === "guardian") targets.push("guardian");
+    else if (["admin", "super_admin", "kepala_sekolah"].includes(role)) {
+       // Admins and Principals see all targets
+       targets = ["all", "student", "teacher", "guardian"];
+    }
+
+    const announcements = await prisma.announcement.findMany({
+      where: {
+        isPublished: true,
+        target: { in: targets }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+    
+    res.json({ success: true, data: announcements });
+  } catch (error) {
+    console.error("[Announcements] GET /recent error:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server" });
+  }
+});
+
 router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(announcementSchema.partial()), async (req: Request, res: Response) => {
   try {
     const ann = await prisma.announcement.update({ where: { id: Number(req.params.id) }, data: req.body });

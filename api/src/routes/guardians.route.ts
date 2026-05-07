@@ -31,33 +31,22 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
     const guardians = await prisma.guardian.findMany({
       where,
       include: {
-        students: {
-          select: { id: true, name: true, class: { select: { name: true } } },
-        },
+        students: { select: { id: true, name: true, class: { select: { name: true } } } },
+        user: { select: { userCode: true } },
       },
       orderBy: { name: "asc" },
     });
 
-    // Ambil data userCode dari tabel User berdasarkan Phone (yang disimpan di nipNis)
-    const phones = guardians.map(g => g.phone);
-    const users = await prisma.user.findMany({
-      where: { role: "guardian", nipNis: { in: phones } },
-      select: { nipNis: true, userCode: true }
-    });
-
-    const result = guardians.map((g) => {
-      const user = users.find(u => u.nipNis === g.phone);
-      return {
-        id: g.id,
-        name: g.name,
-        phone: g.phone,
-        email: g.email,
-        address: g.address,
-        occupation: g.occupation,
-        userCode: user?.userCode || null,
-        children: g.students.map((s) => ({ id: s.id, name: s.name, className: s.class.name })),
-      };
-    });
+    const result = guardians.map((g) => ({
+      id: g.id,
+      name: g.name,
+      phone: g.phone,
+      email: g.email,
+      address: g.address,
+      occupation: g.occupation,
+      userCode: (g as any).user?.userCode || null,
+      children: g.students.map((s) => ({ id: s.id, name: s.name, className: (s as any).class?.name })),
+    }));
 
     res.json({ success: true, data: result, total: result.length });
   } catch (error) {
@@ -107,23 +96,20 @@ router.post(
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
-      // 3. Gunakan Transaction untuk membuat Guardian dan User Akun sekaligus
+      // 3. Transaction: buat Guardian dulu, dapat id-nya, baru buat User dengan guardianId FK
       const result = await prisma.$transaction(async (tx) => {
-        // Buat Akun User untuk Login (Identifier adalah phone)
+        const guardian = await tx.guardian.create({ data });
+
         await tx.user.create({
           data: {
             name,
             email,
-            nipNis: phone, 
+            nipNis: email, // kept for backward-compat login by email
             userCode,
             password: hashedPassword,
             role: "guardian",
+            guardianId: guardian.id,
           },
-        });
-
-        // Buat Profil Guardian
-        const guardian = await tx.guardian.create({
-          data: data,
         });
 
         return { guardian };

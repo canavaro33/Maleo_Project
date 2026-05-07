@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Bell, LogOut, ChevronDown, User, Settings } from "lucide-react";
 import { Avatar } from "./Avatar";
+import { NotificationBell } from "../notifications/NotificationBell";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import { cn } from "@/lib/utils";
@@ -74,10 +75,7 @@ export function Topbar() {
       {/* Right side */}
       <div className="flex items-center gap-4">
         {/* Notifications */}
-        <button className="relative p-2 rounded-xl text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200">
-          <Bell size={20} />
-          <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-card" />
-        </button>
+        <NotificationBell />
 
         {/* User Profile Dropdown */}
         <div className="relative" ref={dropdownRef}>
@@ -108,10 +106,18 @@ export function Topbar() {
                 <p className="text-sm font-bold text-foreground truncate">{user?.name}</p>
               </div>
               
-              <button className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors">
-                <User size={16} className="text-muted-foreground" />
-                Profil Saya
-              </button>
+              {user?.role !== "admin" && user?.role !== "super_admin" && (
+                <button 
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    router.push("/settings/profile");
+                  }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                >
+                  <User size={16} className="text-muted-foreground" />
+                  Profil Saya
+                </button>
+              )}
               <button className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors">
                 <Settings size={16} className="text-muted-foreground" />
                 Pengaturan

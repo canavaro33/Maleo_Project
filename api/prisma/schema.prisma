@@ -75,39 +75,55 @@ enum MaterialType {
 // MODELS
 // ──────────────────────────────────────────────
 
+// User = Authentication only.
+// Profile data lives in Student, Teacher, Principal, Guardian.
+// One of the FK columns below will be non-null based on role.
 model User {
-  id                    Int      @id @default(autoincrement())
+  id                    Int        @id @default(autoincrement())
   name                  String
-  email                 String?  @unique
-  nipNis                String?  @unique @map("nip_nis")
-  userCode              String?  @map("user_code")
+  email                 String?    @unique
+  nipNis                String?    @unique @map("nip_nis")
+  userCode              String?    @map("user_code")
   password              String
-  role                  Role     @default(admin)
-  force_change_password Boolean  @default(true)
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  role                  Role       @default(admin)
+  force_change_password Boolean    @default(true)
+
+  // Separate FK per profile type — clean 1-User-1-Role-1-Profile
+  studentId             Int?       @unique @map("student_id")
+  teacherId             Int?       @unique @map("teacher_id")
+  principalId           Int?       @unique @map("principal_id")
+  guardianId            Int?       @unique @map("guardian_id")
+
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  student   Student?   @relation(fields: [studentId],   references: [id])
+  teacher   Teacher?   @relation(fields: [teacherId],   references: [id])
+  principal Principal? @relation(fields: [principalId], references: [id])
+  guardian  Guardian?  @relation(fields: [guardianId],  references: [id])
 
   @@map("users")
 }
 
 model Student {
-  id         Int      @id @default(autoincrement())
-  nis        String   @unique
-  name       String
-  gender     Gender
-  birthDate  DateTime @map("birth_date")
-  address    String
-  phone      String
-  status     Status   @default(active)
-  classId    Int      @map("class_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id        Int       @id @default(autoincrement())
+  nis       String    @unique
+  name      String
+  gender    Gender?
+  birthDate DateTime? @map("birth_date")
+  address   String?
+  phone     String?
+  status    Status    @default(active)
+  classId   Int       @map("class_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   class          Class                   @relation(fields: [classId], references: [id])
-  guardians      Guardian[]              @relation("StudentGuardians") // Many-to-Many
+  guardians      Guardian[]              @relation("StudentGuardians")
   attendances    Attendance[]
   grades         Grade[]
   materialAccess StudentMaterialAccess[]
+  user           User?
 
   @@map("students")
 }
@@ -116,9 +132,9 @@ model Teacher {
   id        Int      @id @default(autoincrement())
   nip       String   @unique
   name      String
-  gender    Gender
+  gender    Gender?
   email     String   @unique
-  phone     String
+  phone     String?
   subject   String?
   status    Status   @default(active)
   createdAt DateTime @default(now()) @map("created_at")
@@ -130,21 +146,37 @@ model Teacher {
   contents        Content[]
   assignments     Assignment[]
   learningModules LearningModule[]
+  user            User?
 
   @@map("teachers")
+}
+
+model Principal {
+  id            Int      @id @default(autoincrement())
+  nip           String   @unique
+  name          String
+  principalCode String   @map("principal_code")
+  phone         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User?
+
+  @@map("principals")
 }
 
 model Guardian {
   id         Int      @id @default(autoincrement())
   name       String
-  phone      String
-  email      String
-  address    String
-  occupation String
+  phone      String?
+  email      String   @unique
+  address    String?
+  occupation String?
   createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  students Student[] @relation("StudentGuardians") // Many-to-Many
+  students Student[] @relation("StudentGuardians")
+  user     User?
 
   @@map("guardians")
 }
@@ -165,13 +197,12 @@ model AcademicYear {
 }
 
 model Class {
-  id                 Int      @id @default(autoincrement())
-  name               String   @unique
-  level              Int
-  group              String
-  homeroomTeacherId  Int      @map("homeroom_teacher_id")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                Int      @id @default(autoincrement())
+  name              String   @unique
+  level             Int
+  homeroomTeacherId Int      @map("homeroom_teacher_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   homeroomTeacher Teacher      @relation("HomeroomTeacher", fields: [homeroomTeacherId], references: [id])
   students        Student[]
@@ -216,7 +247,7 @@ model Schedule {
 
   subject Subject @relation(fields: [subjectId], references: [id])
   teacher Teacher @relation(fields: [teacherId], references: [id])
-  class   Class   @relation(fields: [classId], references: [id])
+  class   Class   @relation(fields: [classId],   references: [id])
 
   @@map("schedules")
 }
@@ -278,7 +309,7 @@ model Content {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   teacher Teacher @relation(fields: [teacherId], references: [id])
-  class   Class   @relation(fields: [classId], references: [id])
+  class   Class   @relation(fields: [classId],   references: [id])
   subject Subject @relation(fields: [subjectId], references: [id])
 
   @@map("contents")
@@ -296,7 +327,7 @@ model Assignment {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   teacher Teacher @relation(fields: [teacherId], references: [id])
-  class   Class   @relation(fields: [classId], references: [id])
+  class   Class   @relation(fields: [classId],   references: [id])
   subject Subject @relation(fields: [subjectId], references: [id])
 
   @@map("assignments")
@@ -314,9 +345,9 @@ model LearningModule {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  subject      Subject         @relation(fields: [subjectId], references: [id])
+  subject      Subject         @relation(fields: [subjectId],      references: [id])
   academicYear AcademicYear    @relation(fields: [academicYearId], references: [id])
-  teacher      Teacher         @relation(fields: [teacherId], references: [id])
+  teacher      Teacher         @relation(fields: [teacherId],      references: [id])
   sessions     ModuleSession[]
 
   @@map("learning_modules")
@@ -360,9 +391,8 @@ model StudentMaterialAccess {
   materialId Int      @map("material_id")
   accessedAt DateTime @default(now()) @map("accessed_at")
 
-  student  Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student  Student         @relation(fields: [studentId],  references: [id], onDelete: Cascade)
   material SessionMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@map("student_material_access")
 }
-

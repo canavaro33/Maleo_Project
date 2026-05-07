@@ -50,7 +50,7 @@ export default function StudentsPage() {
       // Backend mapping: class -> gradeName for frontend compatibility
       const mappedStudents = studentsRes.data.map((s: any) => ({
         ...s,
-        gradeName: s.class?.name || "N/A",
+        gradeName: s.className || "N/A",
         gradeId: s.classId
       }));
 

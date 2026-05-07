@@ -31,19 +31,15 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
         { subject: { contains: String(search), mode: "insensitive" } },
       ];
     }
-    const teachers = await prisma.teacher.findMany({ where, orderBy: { name: "asc" } });
-    
-    // Ambil data userCode dari tabel User berdasarkan NIP
-    const nips = teachers.map(t => t.nip);
-    const users = await prisma.user.findMany({
-      where: { role: "teacher", nipNis: { in: nips } },
-      select: { nipNis: true, userCode: true }
+    const teachers = await prisma.teacher.findMany({
+      where,
+      include: { user: { select: { userCode: true } } },
+      orderBy: { name: "asc" },
     });
-    
-    const result = teachers.map(t => {
-      const user = users.find(u => u.nipNis === t.nip);
-      return { ...t, userCode: user?.userCode || null };
-    });
+    const result = teachers.map((t) => ({
+      ...t,
+      userCode: t.user?.userCode || null,
+    }));
 
     res.json({ data: result, total: teachers.length });
   } catch (error) {
@@ -78,9 +74,10 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(teacherS
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
-    // 3. Gunakan Transaction untuk membuat Teacher dan User Akun sekaligus
+    // 3. Transaction: buat Teacher dulu, dapat id-nya, baru buat User dengan teacherId FK
     const result = await prisma.$transaction(async (tx) => {
-      // Buat Akun User untuk Login
+      const teacher = await tx.teacher.create({ data });
+
       await tx.user.create({
         data: {
           name,
@@ -89,12 +86,8 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(teacherS
           userCode,
           password: hashedPassword,
           role: "teacher",
+          teacherId: teacher.id,
         },
-      });
-
-      // Buat Profil Teacher
-      const teacher = await tx.teacher.create({
-        data,
       });
 
       return { teacher };

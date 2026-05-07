@@ -14,7 +14,6 @@ const router = Router();
 const classSchema = z.object({
   name: z.string().min(1, "Nama kelas wajib diisi"),
   level: z.coerce.number().int().positive("Level harus angka positif"),
-  group: z.string().min(1, "Kelompok wajib diisi"),
   homeroomTeacherId: z.coerce.number().int().positive("ID wali kelas tidak valid"),
 });
 
@@ -29,7 +28,6 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
     if (search) {
       where.OR = [
         { name: { contains: String(search), mode: "insensitive" } },
-        { group: { contains: String(search), mode: "insensitive" } },
       ];
     }
 
@@ -46,7 +44,6 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
       id: c.id,
       name: c.name,
       level: c.level,
-      group: c.group,
       homeroomTeacherId: c.homeroomTeacherId,
       homeroomTeacherName: c.homeroomTeacher?.name,
       studentCount: c._count.students,
@@ -93,7 +90,7 @@ router.post(
   validate(classSchema),
   async (req: Request, res: Response) => {
     try {
-      const { level, group, homeroomTeacherId, name } = req.body;
+      const { level, homeroomTeacherId, name } = req.body;
 
       // 1. Cek Tahun Ajaran Aktif
       const activeYear = await prisma.academicYear.findFirst({
@@ -136,7 +133,6 @@ router.post(
         data: {
           name,
           level: Number(level),
-          group,
           homeroomTeacherId: Number(homeroomTeacherId),
         },
       });

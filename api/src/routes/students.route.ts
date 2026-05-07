@@ -41,34 +41,26 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
       include: {
         class: { select: { id: true, name: true } },
         guardians: { select: { id: true, name: true } },
+        user: { select: { userCode: true } },
       },
       orderBy: { name: "asc" },
     });
 
-    // Ambil data userCode dari tabel User berdasarkan NIS
-    const nisList = students.map(s => s.nis);
-    const users = await prisma.user.findMany({
-      where: { role: "student", nipNis: { in: nisList } },
-      select: { nipNis: true, userCode: true }
-    });
-
-    const result = students.map((s) => {
-      const user = users.find(u => u.nipNis === s.nis);
-      return {
-        id: s.id,
-        nis: s.nis,
-        name: s.name,
-        gender: s.gender,
-        birthDate: s.birthDate.toISOString().split("T")[0],
-        address: s.address,
-        phone: s.phone,
-        classId: s.classId,
-        className: s.class.name,
-        status: s.status,
-        userCode: user?.userCode || null,
-        guardians: s.guardians.map((g) => ({ id: g.id, name: g.name })),
-      };
-    });
+    // Ambil userCode via relasi user pada student
+    const result = students.map((s) => ({
+      id: s.id,
+      nis: s.nis,
+      name: s.name,
+      gender: s.gender,
+      birthDate: s.birthDate ? s.birthDate.toISOString().split("T")[0] : null,
+      address: s.address,
+      phone: s.phone,
+      classId: s.classId,
+      className: s.class.name,
+      status: s.status,
+      userCode: (s as any).user?.userCode || null,
+      guardians: s.guardians.map((g) => ({ id: g.id, name: g.name })),
+    }));
 
     res.json({ success: true, data: result, total: result.length });
   } catch (error) {
@@ -118,9 +110,17 @@ router.post(
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
-      // 3. Gunakan Transaction untuk membuat Student dan User Akun sekaligus
+      // 3. Transaction: buat Student dulu, dapat id-nya, baru buat User dengan studentId FK
       const result = await prisma.$transaction(async (tx) => {
-        // Buat Akun User untuk Login
+        // Buat Profil Student terlebih dahulu
+        const student = await tx.student.create({
+          data: {
+            ...data,
+            birthDate: new Date(data.birthDate),
+          },
+        });
+
+        // Buat Akun User dengan FK studentId
         await tx.user.create({
           data: {
             name,
@@ -128,14 +128,7 @@ router.post(
             userCode,
             password: hashedPassword,
             role: "student",
-          },
-        });
-
-        // Buat Profil Student
-        const student = await tx.student.create({
-          data: {
-            ...data,
-            birthDate: new Date(data.birthDate),
+            studentId: student.id,
           },
         });
 
