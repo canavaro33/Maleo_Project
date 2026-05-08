@@ -11,8 +11,8 @@ export const apiService = {
     return response.data;
   },
 
-  create: async (endpoint: string, data: any) => {
-    const response = await api.post(endpoint, data);
+  create: async (endpoint: string, data: any, config?: any) => {
+    const response = await api.post(endpoint, data, config);
     return response.data;
   },
 

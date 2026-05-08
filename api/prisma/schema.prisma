@@ -325,6 +325,8 @@ model Assignment {
   title       String
   description String
   dueDate     DateTime @map("due_date")
+  fileUrl     String?  @map("file_url")
+  fileType    String?  @map("file_type")
   teacherId   Int      @map("teacher_id")
   classId     Int      @map("class_id")
   subjectId   Int      @map("subject_id")

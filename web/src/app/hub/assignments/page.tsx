@@ -14,7 +14,11 @@ import {
   Clock,
   LayoutGrid,
   TrendingUp,
-  History
+  History,
+  FileText,
+  Paperclip,
+  Download,
+  X
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -24,45 +28,6 @@ import { Select } from "@/components/ui/Select";
 import { apiService } from "@/services/apiService";
 import { formatDate, cn } from "@/lib/utils";
 
-// === 1. DATA DUMMY ===
-const DUMMY_ASSIGNMENTS = [
-  {
-    id: 1,
-    title: "Latihan Soal Persamaan Linear",
-    description: "Kerjakan soal nomor 1-10 dari buku paket halaman 45",
-    subject: { name: "Matematika" },
-    class: { name: "IX-A" },
-    teacher: { name: "Yulhendri, S.Pd" },
-    dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-    submittedCount: 18,
-    totalStudents: 32,
-    studentSubmission: { submitted: false, submittedAt: null }
-  },
-  {
-    id: 2,
-    title: "Essay Sejarah Kemerdekaan Indonesia",
-    description: "Tulis essay minimal 500 kata tentang perjuangan kemerdekaan",
-    subject: { name: "Sejarah" },
-    class: { name: "IX-B" },
-    teacher: { name: "Yulhendri, S.Pd" },
-    dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    submittedCount: 30,
-    totalStudents: 30,
-    studentSubmission: { submitted: true, submittedAt: new Date().toISOString() }
-  },
-  {
-    id: 3,
-    title: "Praktikum Struktur Data Stack",
-    description: "Implementasikan struktur data stack menggunakan array",
-    subject: { name: "Informatika" },
-    class: { name: "X-A" },
-    teacher: { name: "Yulhendri, S.Pd" },
-    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    submittedCount: 5,
-    totalStudents: 35,
-    studentSubmission: { submitted: false, submittedAt: null }
-  }
-];
 
 export default function AssignmentsPage() {
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -71,15 +36,27 @@ export default function AssignmentsPage() {
   const [isTeacher, setIsTeacher] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Modals state
+  // Tambah state baru:
+  const [teacherClasses, setTeacherClasses] = useState<any[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<any[]>([]);
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+  const [successMessage, setSuccessMessage] = useState("");
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Update formData:
   const [newAssignment, setNewAssignment] = useState({
     title: "",
     description: "",
-    subject: "Matematika",
-    className: "IX-A",
-    dueDate: ""
+    subjectId: "",
+    classId: "",
+    dueDate: "",
+    fileUrl: "",
+    fileType: ""
   });
+
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Filters state
   const [activeFilter, setActiveFilter] = useState("Semua");
@@ -89,26 +66,39 @@ export default function AssignmentsPage() {
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        setIsTeacher(parsed.role === "teacher");
-      } catch (e) {
-        console.error("Failed to parse user data");
-      }
+        const teacherStatus = parsed.role === "teacher";
+        setIsTeacher(teacherStatus);
+        
+        if (teacherStatus) {
+          fetchTeacherData();
+        }
+      } catch (e) {}
     }
-
     fetchAssignments();
   }, []);
+
+  const fetchTeacherData = async () => {
+    try {
+      const [classesRes, subjectsRes] = await Promise.all([
+        apiService.getAll("/hub/teacher-classes"),
+        apiService.getAll("/hub/teacher-subjects"),
+      ]);
+      setTeacherClasses(classesRes.data || []);
+      setTeacherSubjects(subjectsRes.data || []);
+    } catch (error) {
+      console.error("Gagal fetch data guru", error);
+    }
+  };
 
   const fetchAssignments = async () => {
     setLoading(true);
     setError("");
     try {
       const response = await apiService.getAll("/hub/assignments");
-      const data = response.data;
-      setAssignments(data.length > 0 ? data : DUMMY_ASSIGNMENTS);
+      setAssignments(response.data || []);
     } catch (error) {
-      console.error(error);
-      // === 1. FALLBACK KE DUMMY ===
-      setAssignments(DUMMY_ASSIGNMENTS);
+      setError("Gagal memuat daftar tugas. Silakan coba lagi.");
+      setAssignments([]);
     } finally {
       setLoading(false);
     }
@@ -116,42 +106,108 @@ export default function AssignmentsPage() {
 
   // === 2. HANDLER BUAT TUGAS BARU ===
   const handleCreateAssignment = async () => {
-    if (!newAssignment.title || !newAssignment.dueDate) {
-      alert("Judul dan Tenggat Waktu wajib diisi!");
+    if (!newAssignment.title || !newAssignment.dueDate || 
+        !newAssignment.classId || !newAssignment.subjectId) {
+      alert("Semua field wajib diisi!");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const assignmentToAdd = {
-        id: Math.floor(Math.random() * 10000),
+      const payload = {
         title: newAssignment.title,
         description: newAssignment.description,
-        subject: { name: newAssignment.subject },
-        class: { name: newAssignment.className },
-        teacher: { name: "Yulhendri, S.Pd" }, // Assume current user
-        dueDate: new Date(newAssignment.dueDate).toISOString(),
-        submittedCount: 0,
-        totalStudents: 30,
-        studentSubmission: { submitted: false, submittedAt: null }
+        dueDate: newAssignment.dueDate,
+        classId: Number(newAssignment.classId),
+        subjectId: Number(newAssignment.subjectId),
+        fileUrl: newAssignment.fileUrl,
+        fileType: newAssignment.fileType
       };
 
-      // Simulasi delay API
-      await new Promise(resolve => setTimeout(resolve, 800));
+      if (editingAssignment) {
+        await apiService.update("/hub/assignments", editingAssignment.id, payload);
+        setSuccessMessage("Tugas berhasil diperbarui");
+      } else {
+        await apiService.create("/hub/assignments", payload);
+        setSuccessMessage("Tugas berhasil dibuat");
+      }
 
-      setAssignments([assignmentToAdd, ...assignments]);
+      await fetchAssignments();
       setIsCreateModalOpen(false);
-      setNewAssignment({
-        title: "",
-        description: "",
-        subject: "Matematika",
-        className: "IX-A",
-        dueDate: ""
-      });
-    } catch (err) {
-      alert("Gagal membuat tugas");
+      resetForm();
+
+      // Auto-hide success message
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal menyimpan tugas");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setNewAssignment({ title: "", description: "", subjectId: "", classId: "", dueDate: "", fileUrl: "", fileType: "" });
+    setEditingAssignment(null);
+  };
+
+  const handleEdit = (assignment: any) => {
+    setEditingAssignment(assignment);
+    setNewAssignment({
+      title: assignment.title,
+      description: assignment.description || "",
+      subjectId: assignment.subject?.id?.toString() || "",
+      classId: assignment.class?.id?.toString() || "",
+      dueDate: new Date(assignment.dueDate).toISOString().split("T")[0],
+      fileUrl: assignment.fileUrl || "",
+      fileType: assignment.fileType || ""
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check size (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      alert("File terlalu besar. Maksimal 20MB.");
+      return;
+    }
+
+    setUploadingFile(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await apiService.create("/hub/assignments/upload", formData, {
+        headers: { "Content-Type": undefined }
+      });
+      setNewAssignment(prev => ({
+        ...prev,
+        fileUrl: response.fileUrl,
+        fileType: response.fileType
+      }));
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Gagal mengunggah file.");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const removeFile = () => {
+    setNewAssignment(prev => ({ ...prev, fileUrl: "", fileType: "" }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Hapus tugas ini?")) return;
+    try {
+      await apiService.remove("/hub/assignments", id);
+      setSuccessMessage("Tugas berhasil dihapus");
+      await fetchAssignments();
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal menghapus tugas");
     }
   };
 
@@ -205,6 +261,17 @@ export default function AssignmentsPage() {
 
   return (
     <div className="space-y-6">
+      {successMessage && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg">
+          {successMessage}
+        </div>
+      )}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg flex items-center justify-between">
+          <span>{error}</span>
+          <Button size="sm" variant="secondary" onClick={fetchAssignments}>Coba Lagi</Button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -218,7 +285,7 @@ export default function AssignmentsPage() {
           </p>
         </div>
         {isTeacher && (
-          <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Button onClick={() => { resetForm(); setIsCreateModalOpen(true); }}>
             <Plus size={16} />
             Buat Tugas Baru
           </Button>
@@ -367,6 +434,25 @@ export default function AssignmentsPage() {
                           </p>
                         )}
 
+                        {/* Attachment */}
+                        {assignment.fileUrl && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-medium text-slate-600">
+                              <FileText size={14} className="text-slate-400" />
+                              <span className="uppercase">{assignment.fileType}</span>
+                              <div className="w-px h-3 bg-slate-200 mx-1"></div>
+                              <a 
+                                href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000'}${assignment.fileUrl}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-indigo-600 hover:text-indigo-700 hover:underline"
+                              >
+                                <Download size={14} /> Unduh Soal
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Progress Bar */}
                         {isTeacher && (
                           <div className="mt-4 space-y-2">
@@ -413,8 +499,11 @@ export default function AssignmentsPage() {
                         {isTeacher ? (
                           <>
                             <Button variant="secondary" size="sm" className="text-xs">Lihat</Button>
-                            <Button variant="secondary" size="sm" className="text-xs">Edit</Button>
-                            <button className="p-2 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all duration-200 border border-transparent hover:border-red-200">
+                            <Button variant="secondary" size="sm" className="text-xs" onClick={() => handleEdit(assignment)}>Edit</Button>
+                            <button 
+                              onClick={() => handleDelete(assignment.id)}
+                              className="p-2 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all duration-200 border border-transparent hover:border-red-200"
+                            >
                               <Trash2 size={18} />
                             </button>
                           </>
@@ -458,7 +547,7 @@ export default function AssignmentsPage() {
         <Modal
           isOpen={isCreateModalOpen}
           onClose={() => !isSubmitting && setIsCreateModalOpen(false)}
-          title="Buat Tugas Baru"
+          title={editingAssignment ? "Edit Tugas" : "Buat Tugas Baru"}
         >
           <div className="p-6 space-y-4">
             <Input
@@ -482,28 +571,19 @@ export default function AssignmentsPage() {
             <div className="grid grid-cols-2 gap-4">
               <Select
                 label="Mata Pelajaran"
-                value={newAssignment.subject}
-                onChange={(e) => setNewAssignment({ ...newAssignment, subject: e.target.value })}
-                options={[
-                  { value: "Matematika", label: "Matematika" },
-                  { value: "Bahasa Indonesia", label: "Bahasa Indonesia" },
-                  { value: "IPA", label: "IPA" },
-                  { value: "IPS", label: "IPS" },
-                  { value: "Informatika", label: "Informatika" },
-                ]}
+                value={newAssignment.subjectId}
+                onChange={(e) => setNewAssignment({ ...newAssignment, subjectId: e.target.value })}
+                options={teacherSubjects.map(s => ({ value: String(s.id), label: s.name }))}
+                placeholder="Pilih mata pelajaran..."
+                required
               />
               <Select
                 label="Kelas"
-                value={newAssignment.className}
-                onChange={(e) => setNewAssignment({ ...newAssignment, className: e.target.value })}
-                options={[
-                  { value: "VII-A", label: "VII-A" },
-                  { value: "VII-B", label: "VII-B" },
-                  { value: "VIII-A", label: "VIII-A" },
-                  { value: "VIII-B", label: "VIII-B" },
-                  { value: "IX-A", label: "IX-A" },
-                  { value: "IX-B", label: "IX-B" },
-                ]}
+                value={newAssignment.classId}
+                onChange={(e) => setNewAssignment({ ...newAssignment, classId: e.target.value })}
+                options={teacherClasses.map(c => ({ value: String(c.id), label: c.name }))}
+                placeholder="Pilih kelas..."
+                required
               />
             </div>
 
@@ -515,6 +595,52 @@ export default function AssignmentsPage() {
               onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
             />
 
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-foreground">Lampiran Soal (PDF/PPT/DOC)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  accept=".pdf,.ppt,.pptx,.doc,.docx"
+                />
+                {!newAssignment.fileUrl ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full border-dashed py-6"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingFile}
+                  >
+                    {uploadingFile ? (
+                      <Loader2 className="animate-spin mr-2" size={16} />
+                    ) : (
+                      <Paperclip className="mr-2" size={16} />
+                    )}
+                    {uploadingFile ? "Mengunggah..." : "Klik untuk pilih file soal"}
+                  </Button>
+                ) : (
+                  <div className="flex items-center justify-between w-full p-3 rounded-lg border border-indigo-200 bg-indigo-50">
+                    <div className="flex items-center gap-2">
+                      <FileText size={18} className="text-indigo-600" />
+                      <div className="text-xs">
+                        <p className="font-bold text-indigo-900 uppercase">{newAssignment.fileType}</p>
+                        <p className="text-indigo-600">File berhasil dilampirkan</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={removeFile}
+                      className="p-1 hover:bg-indigo-100 rounded-full text-indigo-400 hover:text-indigo-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">*Maksimal 20MB. Format yang didukung: PDF, PPT, PPTX, DOC, DOCX.</p>
+            </div>
+
             <div className="flex justify-end gap-3 pt-4">
               <Button
                 variant="secondary"
@@ -525,9 +651,9 @@ export default function AssignmentsPage() {
               </Button>
               <Button
                 onClick={handleCreateAssignment}
-                disabled={isSubmitting || !newAssignment.title || !newAssignment.dueDate}
+                disabled={isSubmitting || !newAssignment.title || !newAssignment.dueDate || !newAssignment.classId || !newAssignment.subjectId}
               >
-                {isSubmitting ? <Loader2 className="animate-spin size={16}" /> : "Buat Tugas"}
+                {isSubmitting ? <Loader2 className="animate-spin size={16}" /> : (editingAssignment ? "Simpan Perubahan" : "Buat Tugas")}
               </Button>
             </div>
           </div>
