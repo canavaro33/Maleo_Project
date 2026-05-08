@@ -63,7 +63,7 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
 router.post(
   "/",
   verifyJWT,
-  checkRole("super_admin", "admin", "teacher", "kepala_sekolah"),
+  checkRole("admin", "teacher", "kepala_sekolah"),
   validate(teacherAttendanceSchema),
   async (req: Request, res: Response) => {
     try {
@@ -80,7 +80,7 @@ router.post(
 );
 
 // EXPORT EXCEL
-router.get("/export/excel", verifyJWT, checkRole("super_admin", "admin", "kepala_sekolah"), async (req: Request, res: Response) => {
+router.get("/export/excel", verifyJWT, checkRole("admin", "kepala_sekolah"), async (req: Request, res: Response) => {
   try {
     const attendances = await prisma.teacherAttendance.findMany({
       include: { teacher: { select: { name: true, nip: true } } },
@@ -122,7 +122,7 @@ router.get("/export/excel", verifyJWT, checkRole("super_admin", "admin", "kepala
 });
 
 // EXPORT PDF
-router.get("/export/pdf", verifyJWT, checkRole("super_admin", "admin", "kepala_sekolah"), async (req: Request, res: Response) => {
+router.get("/export/pdf", verifyJWT, checkRole("admin", "kepala_sekolah"), async (req: Request, res: Response) => {
   try {
     const attendances = await prisma.teacherAttendance.findMany({
       include: { teacher: { select: { name: true, nip: true } } },
@@ -148,7 +148,7 @@ router.get("/export/pdf", verifyJWT, checkRole("super_admin", "admin", "kepala_s
 });
 
 // EXPORT CSV
-router.get("/export/csv", verifyJWT, checkRole("super_admin", "admin", "kepala_sekolah"), async (req: Request, res: Response) => {
+router.get("/export/csv", verifyJWT, checkRole("admin", "kepala_sekolah"), async (req: Request, res: Response) => {
   try {
     const attendances = await prisma.teacherAttendance.findMany({
       include: { teacher: { select: { name: true, nip: true } } },

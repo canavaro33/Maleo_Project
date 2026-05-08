@@ -17,7 +17,7 @@ const createUserSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
   email: z.string().email("Format email tidak valid"),
   password: z.string().min(6, "Password minimal 6 karakter").optional(),
-  role: z.enum(["super_admin", "admin", "teacher", "student", "guardian"], {
+  role: z.enum(["admin", "kepala_sekolah", "teacher", "student", "guardian"], {
     errorMap: () => ({ message: "Role tidak valid" }),
   }),
 });
@@ -27,18 +27,18 @@ const updateUserSchema = z.object({
   name: z.string().min(1, "Nama tidak boleh kosong").optional(),
   email: z.string().email("Format email tidak valid").optional(),
   password: z.string().min(6, "Password minimal 6 karakter").optional(),
-  role: z.enum(["super_admin", "admin", "teacher", "student", "guardian"]).optional(),
+  role: z.enum(["admin", "kepala_sekolah", "teacher", "student", "guardian"]).optional(),
 });
 
 // ──────────────────────────────────────────────
-// Manajemen Pengguna (Khusus Admin / Super Admin)
+// Manajemen Pengguna (Khusus Admin)
 // ──────────────────────────────────────────────
 
 // GET /api/users - Ambil semua user
 router.get(
   "/",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   getAllUsers
 );
 
@@ -46,7 +46,7 @@ router.get(
 router.post(
   "/",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   validate(createUserSchema),
   createUser
 );
@@ -55,7 +55,7 @@ router.post(
 router.put(
   "/:id",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   validate(updateUserSchema),
   updateUser
 );
@@ -64,7 +64,7 @@ router.put(
 router.delete(
   "/:id",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   deleteUser
 );
 

@@ -15,8 +15,8 @@ import { AuthRequest } from "./auth";
  * // Siswa dan orang tua boleh mengakses
  * router.get("/", verifyJWT, checkRole("student", "guardian"), handler);
  *
- * // Admin dan super admin
- * router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), handler);
+ * // Admin saja
+ * router.delete("/:id", verifyJWT, checkRole("admin"), handler);
  */
 export const checkRole = (...allowedRoles: Role[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {

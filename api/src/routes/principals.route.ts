@@ -19,7 +19,7 @@ const principalSchema = z.object({
 // ─────────────────────────────────────────────────────────
 // GET /api/principals
 // ─────────────────────────────────────────────────────────
-router.get("/", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
+router.get("/", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     const principals = await prisma.principal.findMany({
       include: { user: true },
@@ -45,7 +45,7 @@ router.get("/", verifyJWT, checkRole("super_admin", "admin"), async (req: Reques
 // ─────────────────────────────────────────────────────────
 // POST /api/principals
 // ─────────────────────────────────────────────────────────
-router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(principalSchema), async (req: Request, res: Response) => {
+router.post("/", verifyJWT, checkRole("admin"), validate(principalSchema), async (req: Request, res: Response) => {
   try {
     const { nip, name, email, phone } = req.body;
 
@@ -116,7 +116,7 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(principa
 // ─────────────────────────────────────────────────────────
 // PUT /api/principals/:id
 // ─────────────────────────────────────────────────────────
-router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(principalSchema.partial()), async (req: Request, res: Response) => {
+router.put("/:id", verifyJWT, checkRole("admin"), validate(principalSchema.partial()), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, phone, email } = req.body;
@@ -172,7 +172,7 @@ router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(princi
 // ─────────────────────────────────────────────────────────
 // DELETE /api/principals/:id
 // ─────────────────────────────────────────────────────────
-router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
+router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 

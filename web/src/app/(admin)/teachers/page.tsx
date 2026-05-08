@@ -30,6 +30,7 @@ export default function TeachersPage() {
     email: "",
     phone: "",
     subject: "",
+    subjectIds: [] as number[],
     status: "active",
   });
 
@@ -69,6 +70,7 @@ export default function TeachersPage() {
       email: "",
       phone: "",
       subject: "",
+      subjectIds: [],
       status: "active",
     });
     setIsModalOpen(true);
@@ -83,9 +85,19 @@ export default function TeachersPage() {
       email: teacher.email,
       phone: teacher.phone,
       subject: teacher.subject || "",
+      subjectIds: teacher.subjects?.map((s: any) => s.id) || [],
       status: teacher.status || "active",
     });
     setIsModalOpen(true);
+  };
+
+  const toggleSubject = (id: number) => {
+    setFormData(prev => ({
+      ...prev,
+      subjectIds: prev.subjectIds.includes(id) 
+        ? prev.subjectIds.filter(sId => sId !== id)
+        : [...prev.subjectIds, id]
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -188,7 +200,11 @@ export default function TeachersPage() {
                     </td>
                     <td className="py-3 px-4 font-mono text-xs">{teacher.nip}</td>
                     <td className="py-3 px-4 font-mono text-xs font-semibold text-indigo-600">{teacher.userCode || '-'}</td>
-                    <td className="py-3 px-4">{teacher.subject ? <Badge variant="info">{teacher.subject}</Badge> : '-'}</td>
+                    <td className="py-3 px-4">
+                      {teacher.subjects && teacher.subjects.length > 0 
+                        ? <div className="flex flex-wrap gap-1">{teacher.subjects.map((s: any) => <Badge key={s.id} variant="info">{s.name}</Badge>)}</div> 
+                        : (teacher.subject ? <Badge variant="info">{teacher.subject}</Badge> : '-')}
+                    </td>
                     <td className="py-3 px-4">
                       <Badge variant={teacher.status === "active" ? "success" : "danger"}>
                         {teacher.status === "active" ? "Aktif" : "Nonaktif"}
@@ -225,7 +241,22 @@ export default function TeachersPage() {
             <Select label="Jenis Kelamin" options={[{value:"L",label:"Laki-laki"},{value:"P",label:"Perempuan"}]} placeholder="Pilih" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} required />
             <Input label="Email" type="email" placeholder="email@maleo.sch.id" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
             <Input label="Telepon" placeholder="08xxxxxxxxxx" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required />
-            <Input label="Mata Pelajaran (Opsional)" placeholder="Masukkan mapel" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} />
+            <div className="space-y-2 col-span-1 sm:col-span-2">
+              <label className="text-sm font-medium">Mata Pelajaran yang Diajar</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                {subjects.map(subject => (
+                  <label key={subject.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.subjectIds.includes(subject.id)}
+                      onChange={() => toggleSubject(subject.id)}
+                      className="rounded"
+                    />
+                    {subject.name}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
             <Button variant="secondary" type="button" disabled={isSubmitting} onClick={() => setIsModalOpen(false)}>Batal</Button>

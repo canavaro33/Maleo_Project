@@ -52,7 +52,7 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
 router.post(
   "/",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   validate(scheduleSchema),
   async (req: Request, res: Response) => {
     try {
@@ -68,7 +68,7 @@ router.post(
 router.put(
   "/:id",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   validate(scheduleSchema.partial()),
   async (req: Request, res: Response) => {
     try {
@@ -90,7 +90,7 @@ router.put(
 router.delete(
   "/:id",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   async (req: Request, res: Response) => {
     try {
       await prisma.schedule.delete({ where: { id: Number(req.params.id) } });

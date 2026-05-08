@@ -28,7 +28,7 @@ export const getLatestNotifications = async (req: AuthRequest, res: Response) =>
       targets.push(AnnouncementTarget.teacher);
     } else if (role === "guardian") {
       targets.push(AnnouncementTarget.guardian);
-    } else if (role === "admin" || role === "super_admin") {
+    } else if (role === "admin") {
       targets.push(AnnouncementTarget.student, AnnouncementTarget.teacher, AnnouncementTarget.guardian);
     }
 

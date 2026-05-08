@@ -53,6 +53,64 @@ async function main() {
 
   console.log(`✅ Tahun Ajaran Aktif siap: ${activeYear.name} ${activeYear.semester}`);
 
+  // 3. Inisialisasi Mata Pelajaran Default
+  // Kita butuh setidaknya 1 guru untuk jadi relasi di model Subject.
+  let defaultTeacher = await prisma.teacher.findFirst();
+  if (!defaultTeacher) {
+    const defaultTeacherEmail = "guru.dummy@maleo.sch.id";
+    const defaultTeacherUser = await prisma.user.upsert({
+      where: { email: defaultTeacherEmail },
+      update: {},
+      create: {
+        name: "Guru Master Data",
+        email: defaultTeacherEmail,
+        password: await bcrypt.hash("GuruMaster123!", 10),
+        role: "teacher",
+        force_change_password: false,
+      }
+    });
+
+    defaultTeacher = await prisma.teacher.create({
+      data: {
+        nip: "000000000",
+        name: "Guru Master Data",
+        email: defaultTeacherEmail,
+        status: "active",
+      }
+    });
+
+    await prisma.user.update({
+      where: { id: defaultTeacherUser.id },
+      data: { teacherId: defaultTeacher.id }
+    });
+    console.log("✅ Guru Dummy untuk Master Data Subject berhasil dibuat");
+  }
+
+  const defaultSubjects = [
+    { code: "PAI", name: "Pendidikan Agama dan Budi Pekerti", gradeLevel: 7, hoursPerWeek: 3 },
+    { code: "PPKN", name: "Pendidikan Pancasila", gradeLevel: 7, hoursPerWeek: 3 },
+    { code: "BIN", name: "Bahasa Indonesia", gradeLevel: 7, hoursPerWeek: 6 },
+    { code: "MAT", name: "Matematika", gradeLevel: 7, hoursPerWeek: 5 },
+    { code: "IPA", name: "Ilmu Pengetahuan Alam (IPA)", gradeLevel: 7, hoursPerWeek: 5 },
+    { code: "IPS", name: "Ilmu Pengetahuan Sosial (IPS)", gradeLevel: 7, hoursPerWeek: 4 },
+    { code: "BING", name: "Bahasa Inggris", gradeLevel: 7, hoursPerWeek: 4 },
+    { code: "PJOK", name: "Pendidikan Jasmani, Olahraga, dan Kesehatan (PJOK)", gradeLevel: 7, hoursPerWeek: 3 },
+    { code: "TIK", name: "Informatika", gradeLevel: 7, hoursPerWeek: 2 },
+    { code: "SBD", name: "Seni Budaya dan Prakarya", gradeLevel: 7, hoursPerWeek: 3 },
+  ];
+
+  for (const sub of defaultSubjects) {
+    await prisma.subject.upsert({
+      where: { code: sub.code },
+      update: {},
+      create: {
+        ...sub,
+        teacherId: defaultTeacher.id,
+      }
+    });
+  }
+  console.log("✅ Data Mata Pelajaran Default berhasil diinisialisasi");
+
   console.log("\n🎉 Database berhasil dibersihkan! Anda sekarang bisa mulai menginput data asli dari frontend.");
 }
 

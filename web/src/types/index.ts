@@ -22,6 +22,7 @@ export interface Student {
 }
 
 export interface Teacher {
+  userCode: string;
   id: number;
   nip: string;
   name: string;

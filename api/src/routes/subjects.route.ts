@@ -54,7 +54,7 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
   }
 });
 
-router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(subjectSchema), async (req: Request, res: Response) => {
+router.post("/", verifyJWT, checkRole("admin"), validate(subjectSchema), async (req: Request, res: Response) => {
   try {
     const { code, name } = req.body;
 
@@ -78,7 +78,7 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(subjectS
   }
 });
 
-router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(subjectSchema.partial()), async (req: Request, res: Response) => {
+router.put("/:id", verifyJWT, checkRole("admin"), validate(subjectSchema.partial()), async (req: Request, res: Response) => {
   try {
     const subject = await prisma.subject.update({ where: { id: Number(req.params.id) }, data: req.body });
     res.json({ message: "Mapel berhasil diperbarui", data: subject });
@@ -89,7 +89,7 @@ router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(subjec
 });
 
 // DELETE /api/subjects/:id
-router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
+router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 

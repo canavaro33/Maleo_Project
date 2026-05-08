@@ -86,7 +86,7 @@ router.get("/:id", verifyJWT, async (req: Request, res: Response) => {
 router.post(
   "/",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   validate(classSchema),
   async (req: Request, res: Response) => {
     try {
@@ -151,12 +151,12 @@ router.post(
 
 // ──────────────────────────────────────────────
 // PUT /api/classes/:id
-// Akses: Admin / Super Admin
+// Akses: Admin
 // ──────────────────────────────────────────────
 router.put(
   "/:id",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   validate(classSchema.partial()),
   async (req: Request, res: Response) => {
     try {
@@ -182,10 +182,10 @@ router.put(
 
 // ──────────────────────────────────────────────
 // DELETE /api/classes/:id
-// Akses: Admin / Super Admin
+// Akses: Admin
 // ──────────────────────────────────────────────
 // DELETE /api/classes/:id
-router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
+router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 

@@ -31,7 +31,7 @@ router.get("/", verifyJWT, async (_req: Request, res: Response) => {
 });
 
 // POST /api/academic-years
-router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(yearSchema), async (req: Request, res: Response) => {
+router.post("/", verifyJWT, checkRole("admin"), validate(yearSchema), async (req: Request, res: Response) => {
   try {
     const data = req.body;
     
@@ -53,7 +53,7 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(yearSche
 });
 
 // PUT /api/academic-years/:id
-router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(yearSchema.partial()), async (req: Request, res: Response) => {
+router.put("/:id", verifyJWT, checkRole("admin"), validate(yearSchema.partial()), async (req: Request, res: Response) => {
   try {
     const data = req.body;
     const id = Number(req.params.id);
@@ -79,7 +79,7 @@ router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(yearSc
 });
 
 // DELETE /api/academic-years/:id
-router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
+router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     await prisma.academicYear.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: "Tahun ajaran berhasil dihapus" });

@@ -76,7 +76,7 @@ router.get("/", verifyJWT, async (req: AuthRequest, res: Response) => {
 router.post(
   "/",
   verifyJWT,
-  checkRole("super_admin", "admin", "teacher"),
+  checkRole("admin", "teacher"),
   validate(gradeSchema),
   async (req: Request, res: Response) => {
     try {
@@ -129,7 +129,7 @@ router.post(
 router.put(
   "/:id",
   verifyJWT,
-  checkRole("super_admin", "admin", "teacher"),
+  checkRole("admin", "teacher"),
   validate(gradeSchema.partial()),
   async (req: Request, res: Response) => {
     try {
@@ -164,7 +164,7 @@ router.put(
 router.delete(
   "/:id",
   verifyJWT,
-  checkRole("super_admin", "admin"),
+  checkRole("admin"),
   async (req: Request, res: Response) => {
     try {
       await prisma.grade.delete({ where: { id: Number(req.params.id) } });

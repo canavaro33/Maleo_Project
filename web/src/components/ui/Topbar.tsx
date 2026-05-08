@@ -51,8 +51,8 @@ export function Topbar() {
   // Helper untuk format role
   const formatRole = (role: string) => {
     switch (role) {
-      case "super_admin": return "Super Admin";
       case "admin": return "Administrator";
+      case "kepala_sekolah": return "Kepala Sekolah";
       case "teacher": return "Guru";
       case "student": return "Siswa";
       case "guardian": return "Wali Murid";
@@ -106,7 +106,7 @@ export function Topbar() {
                 <p className="text-sm font-bold text-foreground truncate">{user?.name}</p>
               </div>
               
-              {user?.role !== "admin" && user?.role !== "super_admin" && (
+              {user?.role !== "admin" && (
                 <button 
                   onClick={() => {
                     setIsDropdownOpen(false);

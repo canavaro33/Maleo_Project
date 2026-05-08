@@ -6,51 +6,63 @@ export function middleware(request: NextRequest) {
   const role = request.cookies.get('user_role')?.value;
   const { pathname } = request.nextUrl;
 
-  // 1. Proteksi halaman yang membutuhkan token
-  const protectedPaths = [
-    '/admin',
-    '/kepala-sekolah',
-    '/hub',
-    '/connect',
-    '/force-change-password',
+  const adminPaths = [
+    '/dashboard', '/teachers', '/students', '/subjects',
+    '/schedules', '/grades', '/attendances', '/announcements',
+    '/academic-years', '/guardians', '/scores',
+    '/principal', '/principal-dashboard',
   ];
-  const isProtected = protectedPaths.some(p => pathname.startsWith(p));
 
+  const isAdminPath = adminPaths.some(p => pathname.startsWith(p));
+  const isHubPath = pathname.startsWith('/hub');
+  const isConnectPath = pathname.startsWith('/connect');
+  const isProtected = isAdminPath || isHubPath || isConnectPath ||
+                      pathname === '/force-change-password';
+
+  // Belum login → redirect ke /login
   if (!token && isProtected) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // 2. Role-Based Access Control (RBAC)
   if (token && role) {
-    // Jika sudah login dan mencoba ke /login, lempar ke dashboard masing-masing
+    // Sudah login → jangan bisa akses /login lagi
     if (pathname === '/login') {
-      if (role === 'admin' || role === 'super_admin')
-        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+      if (role === 'admin')
+        return NextResponse.redirect(new URL('/dashboard', request.url));
       if (role === 'kepala_sekolah')
-        return NextResponse.redirect(new URL('/kepala-sekolah/principal-dashboard', request.url));
+        return NextResponse.redirect(new URL('/principal-dashboard', request.url));
       if (role === 'teacher' || role === 'student')
         return NextResponse.redirect(new URL('/hub/dashboard', request.url));
       if (role === 'guardian')
         return NextResponse.redirect(new URL('/connect/dashboard', request.url));
     }
 
-    // Proteksi area admin — hanya admin, super_admin, kepala_sekolah
-    if (pathname.startsWith('/admin')) {
-      if (role !== 'admin' && role !== 'super_admin' && role !== 'kepala_sekolah') {
+    // Admin paths → hanya admin & kepala_sekolah
+    if (isAdminPath) {
+      if (role !== 'admin' && role !== 'kepala_sekolah') {
         return NextResponse.redirect(new URL('/hub/dashboard', request.url));
       }
     }
 
-    // Proteksi area kepala sekolah — hanya kepala_sekolah
-    if (pathname.startsWith('/kepala-sekolah')) {
-      if (role !== 'kepala_sekolah') {
-        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    // principal & principal-dashboard → hanya kepala_sekolah & admin
+    if (pathname.startsWith('/principal')) {
+      if (role !== 'kepala_sekolah' && role !== 'admin') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
       }
     }
 
-    // Proteksi area hub — guru & siswa tidak boleh ke admin
-    if (pathname.startsWith('/admin') && (role === 'teacher' || role === 'student' || role === 'guardian')) {
-      return NextResponse.redirect(new URL('/hub/dashboard', request.url));
+    // Hub → teacher & student saja
+    if (isHubPath) {
+      if (role === 'admin' || role === 'kepala_sekolah') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+    }
+
+    // Connect → guardian saja
+    if (isConnectPath) {
+      if (role !== 'guardian') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
     }
   }
 
@@ -59,8 +71,19 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/admin/:path*',
-    '/kepala-sekolah/:path*',
+    '/dashboard/:path*',
+    '/principal-dashboard/:path*',
+    '/principal/:path*',
+    '/teachers/:path*',
+    '/students/:path*',
+    '/subjects/:path*',
+    '/schedules/:path*',
+    '/grades/:path*',
+    '/attendances/:path*',
+    '/announcements/:path*',
+    '/academic-years/:path*',
+    '/guardians/:path*',
+    '/scores/:path*',
     '/hub/:path*',
     '/connect/:path*',
     '/force-change-password',

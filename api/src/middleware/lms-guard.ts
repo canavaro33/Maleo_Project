@@ -16,7 +16,7 @@ export const authorizeLMS = (req: AuthRequest, res: Response, next: NextFunction
     return;
   }
 
-  const allowedRoles: Role[] = ["teacher", "student", "guardian", "admin", "super_admin"];
+  const allowedRoles: Role[] = ["teacher", "student", "guardian", "admin"];
   const userRole = req.user.role as Role;
 
   if (userRole === "kepala_sekolah") {

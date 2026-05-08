@@ -16,6 +16,7 @@ const teacherSchema = z.object({
   email: z.string().email("Email tidak valid"),
   phone: z.string().min(1, "Telepon wajib diisi"),
   subject: z.string().optional().or(z.literal("")),
+  subjectIds: z.array(z.number()).optional(),
   status: z.enum(["active", "inactive"]).optional(),
 });
 
@@ -33,7 +34,7 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
     }
     const teachers = await prisma.teacher.findMany({
       where,
-      include: { user: { select: { userCode: true } } },
+      include: { user: { select: { userCode: true } }, subjects: { select: { id: true, name: true } } },
       orderBy: { name: "asc" },
     });
     const result = teachers.map((t) => ({
@@ -50,7 +51,10 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
 // GET /api/teachers/:id
 router.get("/:id", verifyJWT, async (req: Request, res: Response) => {
   try {
-    const teacher = await prisma.teacher.findUnique({ where: { id: Number(req.params.id) } });
+    const teacher = await prisma.teacher.findUnique({ 
+      where: { id: Number(req.params.id) },
+      include: { subjects: { select: { id: true, name: true } } }
+    });
     if (!teacher) { res.status(404).json({ message: "Guru tidak ditemukan" }); return; }
     res.json({ data: teacher });
   } catch (error) {
@@ -59,10 +63,10 @@ router.get("/:id", verifyJWT, async (req: Request, res: Response) => {
 });
 
 // POST /api/teachers
-router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(teacherSchema), async (req: Request, res: Response) => {
+router.post("/", verifyJWT, checkRole("admin"), validate(teacherSchema), async (req: Request, res: Response) => {
   try {
-    const data = req.body;
-    const { nip, name, email } = data;
+    const { nip, name, email, subjectIds, ...restData } = req.body;
+    const data = { nip, name, email, ...restData };
 
     // 1. Generate unique 3-digit userCode otomatis
     const userCode = await generateUniqueUserCode("teacher");
@@ -76,7 +80,12 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(teacherS
 
     // 3. Transaction: buat Teacher dulu, dapat id-nya, baru buat User dengan teacherId FK
     const result = await prisma.$transaction(async (tx) => {
-      const teacher = await tx.teacher.create({ data });
+      const teacher = await tx.teacher.create({ 
+        data: {
+          ...data,
+          subjects: subjectIds ? { connect: subjectIds.map((id: number) => ({ id })) } : undefined
+        }
+      });
 
       await tx.user.create({
         data: {
@@ -109,9 +118,17 @@ router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(teacherS
 });
 
 // PUT /api/teachers/:id
-router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(teacherSchema.partial()), async (req: Request, res: Response) => {
+router.put("/:id", verifyJWT, checkRole("admin"), validate(teacherSchema.partial()), async (req: Request, res: Response) => {
   try {
-    const teacher = await prisma.teacher.update({ where: { id: Number(req.params.id) }, data: req.body });
+    const { subjectIds, ...data } = req.body;
+    const updateData: any = { ...data };
+    if (subjectIds) {
+      updateData.subjects = { set: subjectIds.map((id: number) => ({ id })) };
+    }
+    const teacher = await prisma.teacher.update({ 
+      where: { id: Number(req.params.id) }, 
+      data: updateData 
+    });
     res.json({ message: "Guru berhasil diperbarui", data: teacher });
   } catch (error: any) {
     if (error.code === "P2025") { res.status(404).json({ message: "Guru tidak ditemukan" }); return; }
@@ -120,7 +137,7 @@ router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(teache
 });
 
 // DELETE /api/teachers/:id
-router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
+router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 

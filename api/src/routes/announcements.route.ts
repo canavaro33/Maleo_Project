@@ -34,7 +34,7 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
   } catch (error) { res.status(500).json({ message: "Terjadi kesalahan server" }); }
 });
 
-router.post("/", verifyJWT, checkRole("super_admin", "admin"), validate(announcementSchema), async (req: Request, res: Response) => {
+router.post("/", verifyJWT, checkRole("admin"), validate(announcementSchema), async (req: Request, res: Response) => {
   try {
     const ann = await prisma.announcement.create({ data: req.body });
     res.status(201).json({ message: "Pengumuman berhasil dibuat", data: ann });
@@ -50,7 +50,7 @@ router.get("/recent", verifyJWT, async (req: Request, res: Response) => {
     if (role === "student") targets.push("student");
     else if (role === "teacher") targets.push("teacher");
     else if (role === "guardian") targets.push("guardian");
-    else if (["admin", "super_admin", "kepala_sekolah"].includes(role)) {
+    else if (["admin", "kepala_sekolah"].includes(role)) {
        // Admins and Principals see all targets
        targets = ["all", "student", "teacher", "guardian"];
     }
@@ -71,7 +71,7 @@ router.get("/recent", verifyJWT, async (req: Request, res: Response) => {
   }
 });
 
-router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(announcementSchema.partial()), async (req: Request, res: Response) => {
+router.put("/:id", verifyJWT, checkRole("admin"), validate(announcementSchema.partial()), async (req: Request, res: Response) => {
   try {
     const ann = await prisma.announcement.update({ where: { id: Number(req.params.id) }, data: req.body });
     res.json({ message: "Pengumuman berhasil diperbarui", data: ann });
@@ -81,7 +81,7 @@ router.put("/:id", verifyJWT, checkRole("super_admin", "admin"), validate(announ
   }
 });
 
-router.delete("/:id", verifyJWT, checkRole("super_admin", "admin"), async (req: Request, res: Response) => {
+router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     await prisma.announcement.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: "Pengumuman berhasil dihapus" });

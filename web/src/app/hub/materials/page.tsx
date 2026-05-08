@@ -414,7 +414,7 @@ export default function MaterialsPage() {
               />
             </div>
           )}
-          <Button variant="secondary" size="icon" onClick={fetchModules} disabled={loading}>
+          <Button variant="secondary" size="sm" onClick={fetchModules} disabled={loading}>
             <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
           </Button>
         </div>

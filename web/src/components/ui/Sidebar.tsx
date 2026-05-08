@@ -35,7 +35,7 @@ const menuItems = [
   {
     label: "Data Master",
     items: [
-      { name: "Data Kepala Sekolah", href: "/admin/data-master/principal", icon: ShieldCheck },
+      { name: "Data Kepala Sekolah", href: "/principal", icon: ShieldCheck },
     ],
   },
   {

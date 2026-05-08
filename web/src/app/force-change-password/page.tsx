@@ -38,12 +38,12 @@ function ForceChangePasswordContent() {
     const storedUser = localStorage.getItem("user");
     const user = storedUser ? JSON.parse(storedUser) : null;
 
-    if (user?.role === "super_admin" || user?.role === "admin") {
-      router.push("/admin/dashboard");
+    if (user?.role === "admin") {
+      router.push("/dashboard");
       return;
     }
     if (user?.role === "kepala_sekolah") {
-      router.push("/kepala-sekolah/principal-dashboard");
+      router.push("/principal-dashboard");
       return;
     }
     if (user?.role === "teacher" || user?.role === "student") {
@@ -54,7 +54,7 @@ function ForceChangePasswordContent() {
       router.push("/connect/dashboard");
       return;
     }
-    router.push("/admin/dashboard");
+    router.push("/dashboard");
   };
 
   return (

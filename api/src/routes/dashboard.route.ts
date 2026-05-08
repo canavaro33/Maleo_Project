@@ -5,7 +5,7 @@ import { checkRole } from "../middleware/role";
 
 const router = Router();
 
-// Protected route: Admin only
-router.get("/summary", verifyJWT, checkRole("super_admin", "admin"), getDashboardSummary);
+// Protected route: Admin & Kepala Sekolah
+router.get("/summary", verifyJWT, checkRole("admin", "kepala_sekolah"), getDashboardSummary);
 
 export default router;
