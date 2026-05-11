@@ -8,13 +8,34 @@ import bcrypt from "bcryptjs";
 
 const router = Router();
 
-// Validation Schema
-const principalSchema = z.object({
+// Helper: convert empty string "" to null before Zod validates
+const emptyToNull = (val: unknown) => (val === "" ? null : val);
+
+// Validation Schemas
+const principalCreateSchema = z.object({
   nip: z.string().min(1, "NIP wajib diisi"),
   name: z.string().min(1, "Nama wajib diisi"),
-  email: z.string().email("Format email tidak valid"),
-  phone: z.string().optional().nullable(),
+  phone: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  gender: z.preprocess(emptyToNull, z.enum(["L", "P"]).nullable().optional()),
+  email: z.preprocess(
+    emptyToNull,
+    z.string().email("Format email tidak valid").nullable().optional()
+  ),
+  address: z.preprocess(emptyToNull, z.string().nullable().optional()),
 });
+
+const principalUpdateSchema = z.object({
+  nip: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  phone: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  gender: z.preprocess(emptyToNull, z.enum(["L", "P"]).nullable().optional()),
+  email: z.preprocess(
+    emptyToNull,
+    z.string().email("Format email tidak valid").nullable().optional()
+  ),
+  address: z.preprocess(emptyToNull, z.string().nullable().optional()),
+});
+
 
 // ─────────────────────────────────────────────────────────
 // GET /api/principals
@@ -22,20 +43,13 @@ const principalSchema = z.object({
 router.get("/", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
   try {
     const principals = await prisma.principal.findMany({
-      include: { user: true },
-      orderBy: { name: "asc" },
+      include: {
+        user: { select: { id: true, userCode: true, force_change_password: true } },
+      },
+      orderBy: { createdAt: "desc" },
     });
 
-    // Format response to include email from user
-    const formatted = principals.map((p) => ({
-      id: p.id,
-      nip: p.nip,
-      name: p.name,
-      phone: p.phone,
-      email: p.user?.email || "-",
-    }));
-
-    res.json({ success: true, data: formatted });
+    res.json({ success: true, data: principals });
   } catch (error) {
     console.error("[Principals] GET error:", error);
     res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
@@ -45,129 +59,164 @@ router.get("/", verifyJWT, checkRole("admin"), async (req: Request, res: Respons
 // ─────────────────────────────────────────────────────────
 // POST /api/principals
 // ─────────────────────────────────────────────────────────
-router.post("/", verifyJWT, checkRole("admin"), validate(principalSchema), async (req: Request, res: Response) => {
-  try {
-    const { nip, name, email, phone } = req.body;
+router.post(
+  "/",
+  verifyJWT,
+  checkRole("admin"),
+  validate(principalCreateSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const { nip, name, email, phone, gender, address } = req.body;
 
-    // 1. Check if email or nip already used
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      res.status(400).json({ success: false, message: "Email sudah digunakan" });
-      return;
-    }
+      // 1. Check NIP uniqueness
+      const existingPrincipal = await prisma.principal.findUnique({ where: { nip } });
+      if (existingPrincipal) {
+        res.status(400).json({ success: false, message: "NIP sudah terdaftar" });
+        return;
+      }
 
-    const existingPrincipal = await prisma.principal.findUnique({ where: { nip } });
-    if (existingPrincipal) {
-      res.status(400).json({ success: false, message: "NIP sudah terdaftar" });
-      return;
-    }
+      // 2. Check email uniqueness (if provided)
+      if (email) {
+        const existingEmail = await prisma.principal.findUnique({ where: { email } });
+        if (existingEmail) {
+          res.status(400).json({ success: false, message: "Email sudah digunakan" });
+          return;
+        }
+        const existingUserEmail = await prisma.user.findUnique({ where: { email } });
+        if (existingUserEmail) {
+          res.status(400).json({ success: false, message: "Email sudah digunakan oleh akun lain" });
+          return;
+        }
+      }
 
-    // 2. Generate Default Password: K + random 3 digit
-    const randomDigits = Math.floor(100 + Math.random() * 900);
-    const defaultPassword = `K${randomDigits}`;
-    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+      // 3. Generate sequential principalCode: K001, K002, …
+      const count = await prisma.principal.count();
+      const principalCode = `K${String(count + 1).padStart(3, "0")}`;
 
-    // 3. Database Transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // a. Create Principal
-      const principal = await tx.principal.create({
-        data: {
-          nip,
-          name,
-          phone,
-          principalCode: `PRIN-${nip}`, // internal code based on NIP
-        },
+      // 4. Hash password default = principalCode
+      const hashedPassword = await bcrypt.hash(principalCode, 10);
+
+      // 5. Database transaction
+      const result = await prisma.$transaction(async (tx) => {
+        const principal = await tx.principal.create({
+          data: {
+            nip,
+            name,
+            phone: phone ?? null,
+            gender: gender ?? null,
+            email: email ?? null,
+            address: address ?? null,
+            principalCode,
+          },
+        });
+
+        const user = await tx.user.create({
+          data: {
+            name,
+            role: "kepala_sekolah",
+            nipNis: nip,
+            userCode: principalCode,
+            password: hashedPassword,
+            force_change_password: true,
+            principalId: principal.id,
+          },
+        });
+
+        return { principal, user };
       });
 
-      // b. Create User
-      const user = await tx.user.create({
+      res.status(201).json({
+        success: true,
+        message: "Kepala Sekolah berhasil ditambahkan",
         data: {
-          name,
-          email,
-          password: hashedPassword,
-          role: "kepala_sekolah",
-          userCode: nip, // Username = NIP
-          principalId: principal.id,
-          force_change_password: true,
-          nipNis: nip,
+          ...result.principal,
+          userCode: result.user.userCode,
         },
       });
-
-      return { principal, user, defaultPassword };
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Kepala Sekolah berhasil ditambahkan",
-      data: {
-        id: result.principal.id,
-        nip: result.principal.nip,
-        name: result.principal.name,
-        username: result.user.userCode,
-        password: result.defaultPassword, // Shown only once
-      },
-    });
-  } catch (error) {
-    console.error("[Principals] POST error:", error);
-    res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+    } catch (error) {
+      console.error("[Principals] POST error:", error);
+      res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+    }
   }
-});
+);
 
 // ─────────────────────────────────────────────────────────
 // PUT /api/principals/:id
 // ─────────────────────────────────────────────────────────
-router.put("/:id", verifyJWT, checkRole("admin"), validate(principalSchema.partial()), async (req: Request, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    const { name, phone, email } = req.body;
+router.put(
+  "/:id",
+  verifyJWT,
+  checkRole("admin"),
+  validate(principalUpdateSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const { name, nip, phone, gender, email, address } = req.body;
 
-    // Check if principal exists
-    const existing = await prisma.principal.findUnique({
-      where: { id },
-      include: { user: true },
-    });
-    if (!existing) {
-      res.status(404).json({ success: false, message: "Data tidak ditemukan" });
-      return;
-    }
-
-    // Check email uniqueness if being changed
-    if (email && email !== existing.user?.email) {
-      const emailTaken = await prisma.user.findUnique({ where: { email } });
-      if (emailTaken) {
-        res.status(400).json({ success: false, message: "Email sudah digunakan oleh user lain" });
+      // Check if principal exists
+      const existing = await prisma.principal.findUnique({
+        where: { id },
+        include: { user: true },
+      });
+      if (!existing) {
+        res.status(404).json({ success: false, message: "Data tidak ditemukan" });
         return;
       }
-    }
 
-    await prisma.$transaction(async (tx) => {
-      // Update Principal
-      await tx.principal.update({
-        where: { id },
-        data: {
-          name: name ?? undefined,
-          phone: phone ?? undefined,
-        },
-      });
+      // Check email uniqueness if changing
+      if (email && email !== existing.email) {
+        const emailTakenPrincipal = await prisma.principal.findUnique({ where: { email } });
+        if (emailTakenPrincipal && emailTakenPrincipal.id !== id) {
+          res.status(400).json({ success: false, message: "Email sudah digunakan" });
+          return;
+        }
+        const emailTakenUser = await prisma.user.findUnique({ where: { email } });
+        if (emailTakenUser && emailTakenUser.principalId !== id) {
+          res.status(400).json({ success: false, message: "Email sudah digunakan oleh akun lain" });
+          return;
+        }
+      }
 
-      // Update User
-      if (existing.user) {
-        await tx.user.update({
-          where: { id: existing.user.id },
+      // Check NIP uniqueness if changing
+      if (nip && nip !== existing.nip) {
+        const nipTaken = await prisma.principal.findUnique({ where: { nip } });
+        if (nipTaken) {
+          res.status(400).json({ success: false, message: "NIP sudah terdaftar" });
+          return;
+        }
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.principal.update({
+          where: { id },
           data: {
             name: name ?? undefined,
+            nip: nip ?? undefined,
+            phone: phone ?? undefined,
+            gender: gender ?? undefined,
             email: email ?? undefined,
+            address: address ?? undefined,
           },
         });
-      }
-    });
 
-    res.json({ success: true, message: "Data berhasil diperbarui" });
-  } catch (error) {
-    console.error("[Principals] PUT error:", error);
-    res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+        if (existing.user) {
+          await tx.user.update({
+            where: { id: existing.user.id },
+            data: {
+              name: name ?? undefined,
+              nipNis: nip ?? undefined,
+            },
+          });
+        }
+      });
+
+      res.json({ success: true, message: "Data berhasil diperbarui" });
+    } catch (error) {
+      console.error("[Principals] PUT error:", error);
+      res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+    }
   }
-});
+);
 
 // ─────────────────────────────────────────────────────────
 // DELETE /api/principals/:id
@@ -176,28 +225,50 @@ router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: R
   try {
     const id = Number(req.params.id);
 
-    const principal = await prisma.principal.findUnique({
-      where: { id },
-      include: { user: true },
-    });
-
+    const principal = await prisma.principal.findUnique({ where: { id } });
     if (!principal) {
       res.status(404).json({ success: false, message: "Data tidak ditemukan" });
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Delete user first (FK dependency)
-      if (principal.user) {
-        await tx.user.delete({ where: { id: principal.user.id } });
-      }
-      // Delete principal
-      await tx.principal.delete({ where: { id } });
-    });
+    // Delete User first (FK constraint), then Principal
+    await prisma.user.deleteMany({ where: { principalId: id } });
+    await prisma.principal.delete({ where: { id } });
 
     res.json({ success: true, message: "Data Kepala Sekolah berhasil dihapus" });
   } catch (error) {
     console.error("[Principals] DELETE error:", error);
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+// POST /api/principals/:id/reset-password
+// ─────────────────────────────────────────────────────────
+router.post("/:id/reset-password", verifyJWT, checkRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+
+    const principal = await prisma.principal.findUnique({ where: { id } });
+    if (!principal) {
+      res.status(404).json({ success: false, message: "Data tidak ditemukan" });
+      return;
+    }
+
+    // Hash principalCode as new password
+    const hashed = await bcrypt.hash(principal.principalCode, 10);
+
+    await prisma.user.updateMany({
+      where: { principalId: id },
+      data: { password: hashed, force_change_password: true },
+    });
+
+    res.json({
+      success: true,
+      message: `Password berhasil direset ke kode sistem (${principal.principalCode})`,
+    });
+  } catch (error) {
+    console.error("[Principals] RESET-PASSWORD error:", error);
     res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
   }
 });

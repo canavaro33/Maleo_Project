@@ -16,6 +16,7 @@ import {
   ChevronRight,
   PlusCircle,
   UserCircle,
+  UserCheck,
 } from "lucide-react";
 
 const menuItemsTeacher = [
@@ -33,10 +34,16 @@ const menuItemsTeacher = [
     ],
   },
   {
+    label: "Kehadiran",
+    items: [
+      { name: "Check-in Hari Ini", href: "/hub/checkin", icon: UserCheck },
+    ],
+  },
+  {
     label: "Akademik",
     items: [
       { name: "Nilai", href: "/hub/grades", icon: Award },
-      { name: "Kehadiran", href: "/hub/attendance", icon: ClipboardCheck },
+      { name: "Kehadiran Siswa", href: "/hub/attendance", icon: ClipboardCheck },
       { name: "Input Absensi", href: "/hub/absensi/input", icon: PlusCircle },
       { name: "Jadwal", href: "/hub/schedules", icon: Clock },
     ],

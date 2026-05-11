@@ -19,12 +19,12 @@ async function main() {
       name: "Admin Utama",
       email: adminEmail,
       password: adminPassword,
-      role: "super_admin",
+      role: "admin",
       force_change_password: false,
     },
   });
 
-  console.log(`✅ Super Admin siap: ${admin.email}`);
+  console.log(`✅ Admin siap: ${admin.email}`);
 
   // 2. Inisialisasi Tahun Ajaran Aktif
   const yearName = "2025/2026";

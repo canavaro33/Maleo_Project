@@ -25,7 +25,7 @@ import {
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 
-const menuItems = [
+const adminMenuItems = [
   {
     label: "Menu Utama",
     items: [
@@ -58,7 +58,8 @@ const menuItems = [
   {
     label: "Aktivitas",
     items: [
-      { name: "Kehadiran", href: "/attendances", icon: ClipboardCheck },
+      { name: "Kehadiran Siswa", href: "/attendances", icon: ClipboardCheck },
+      { name: "Kehadiran Guru", href: "/teacher-attendances", icon: UserCheck },
       { name: "Nilai", href: "/scores", icon: Award },
     ],
   },
@@ -71,6 +72,36 @@ const menuItems = [
   },
 ];
 
+const principalMenuItems = [
+  {
+    label: "MENU UTAMA",
+    items: [
+      { name: "Dashboard", href: "/principal-dashboard", icon: LayoutDashboard },
+    ]
+  },
+  {
+    label: "MONITORING",
+    items: [
+      { name: "Kehadiran Siswa", href: "/attendances", icon: ClipboardCheck },
+      { name: "Kehadiran Guru", href: "/teacher-attendances", icon: UserCheck },
+    ]
+  },
+  {
+    label: "DATA",
+    items: [
+      { name: "Wali Murid & Siswa", href: "/guardians", icon: Users },
+    ]
+  },
+  {
+    label: "INFORMASI",
+    items: [
+      { name: "Pengumuman", href: "/announcements", icon: Megaphone },
+      { name: "Profil Saya", href: "/settings/profile", icon: UserCircle },
+    ]
+  },
+];
+// ...
+
 interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
@@ -79,6 +110,17 @@ interface SidebarProps {
 export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [role, setRole] = useState<string>("admin");
+
+  React.useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setRole(user.role || "admin");
+    }
+  }, []);
+
+  const menuItems = role === 'kepala_sekolah' ? principalMenuItems : adminMenuItems;
 
   const handleLogout = () => {
     if (window.confirm("Apakah Anda yakin ingin keluar?")) {

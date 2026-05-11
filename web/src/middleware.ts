@@ -51,6 +51,32 @@ export function middleware(request: NextRequest) {
       }
     }
 
+    // Halaman yang HANYA admin yang boleh akses (kepala_sekolah tidak boleh)
+    const adminOnlyWritePaths = [
+      '/teachers',
+      '/students',
+      '/subjects',
+      '/schedules',
+      '/academic-years',
+      '/guardians',
+      '/principal',   // /principal CRUD — bukan /principal-dashboard
+      '/scores',
+      '/grades',
+      '/attendances',
+      '/announcements',
+    ];
+
+    // Redirect kepala_sekolah jika mencoba akses halaman admin-only
+    // (kecuali /principal-dashboard yang memang miliknya)
+    if (role === 'kepala_sekolah') {
+      const isAdminWrite = adminOnlyWritePaths.some(
+        p => pathname.startsWith(p) && !pathname.startsWith('/principal-dashboard')
+      );
+      if (isAdminWrite) {
+        return NextResponse.redirect(new URL('/principal-dashboard', request.url));
+      }
+    }
+
     // Hub → teacher & student saja
     if (isHubPath) {
       if (role === 'admin' || role === 'kepala_sekolah') {
@@ -68,6 +94,7 @@ export function middleware(request: NextRequest) {
 
   return NextResponse.next();
 }
+
 
 export const config = {
   matcher: [

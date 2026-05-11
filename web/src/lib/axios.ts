@@ -1,5 +1,11 @@
 import axios from "axios";
 
+const getCookie = (name: string): string | null => {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? decodeURIComponent(match[2]) : null;
+};
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
   headers: {
@@ -11,7 +17,9 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("jwt_token");
+      // Prefer localStorage; fall back to cookie if localStorage was cleared
+      const token =
+        localStorage.getItem("jwt_token") || getCookie("jwt_token");
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -22,6 +30,7 @@ api.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
 
 // Response Interceptor
 api.interceptors.response.use(

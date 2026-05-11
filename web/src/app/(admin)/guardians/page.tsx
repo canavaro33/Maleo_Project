@@ -30,6 +30,7 @@ export default function GuardiansPage() {
   const [editingGuardian, setEditingGuardian] = useState<Guardian | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [role, setRole] = useState("admin");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -52,6 +53,8 @@ export default function GuardiansPage() {
   };
 
   useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    setRole(user.role || "admin");
     fetchGuardians();
   }, []);
 
@@ -133,10 +136,12 @@ export default function GuardiansPage() {
           <Button variant="secondary" size="sm" onClick={fetchGuardians}>
             <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
           </Button>
-          <Button size="sm" onClick={openAdd}>
-            <Plus size={16} />
-            Tambah Wali Murid
-          </Button>
+          {role !== "kepala_sekolah" && (
+            <Button size="sm" onClick={openAdd}>
+              <Plus size={16} />
+              Tambah Wali Murid
+            </Button>
+          )}
         </div>
       </div>
 
@@ -161,7 +166,7 @@ export default function GuardiansPage() {
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Telepon</th>
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Pekerjaan</th>
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Anak</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground">Aksi</th>
+                  {role !== "kepala_sekolah" && <th className="text-right py-3 px-4 font-semibold text-muted-foreground">Aksi</th>}
                 </tr>
               </thead>
               <tbody>
@@ -195,16 +200,18 @@ export default function GuardiansPage() {
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(guardian)} className="p-2 rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
-                          <Pencil size={16} />
-                        </button>
-                        <button onClick={() => handleDelete(guardian.id)} className="p-2 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+                    {role !== "kepala_sekolah" && (
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEdit(guardian)} className="p-2 rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+                            <Pencil size={16} />
+                          </button>
+                          <button onClick={() => handleDelete(guardian.id)} className="p-2 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
