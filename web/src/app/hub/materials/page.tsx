@@ -88,33 +88,51 @@ export default function MaterialsPage() {
     const fetchFilters = async () => {
       try {
         setLoading(true);
-        console.log("DEBUG: Fetching filters for user:", user.id);
-        
-        const [subsRes, classesRes, yearsRes] = await Promise.all([
-          apiService.getAll("/lms/subjects"),
-          apiService.getAll("/lms/classes"),
-          apiService.getAll("/academic-years")
-        ]);
+        const isStudentUser = user.role === "student";
 
-        console.log("DEBUG: Subjects:", subsRes.data?.length);
-        console.log("DEBUG: Classes:", classesRes.data?.length);
-        console.log("DEBUG: Years:", yearsRes.data?.length);
+        if (isStudentUser) {
+          // Siswa: ambil mapel dari kelas mereka + academic years
+          const [subsRes, yearsRes] = await Promise.all([
+            apiService.getAll("/hub/student-subjects"),
+            apiService.getAll("/academic-years")
+          ]);
 
-        setSubjects(subsRes.data || []);
-        setTeacherClasses(classesRes.data || []);
-        setAcademicYears(yearsRes.data || []);
+          const subs = subsRes.data || [];
+          setSubjects(subs);
+          setAcademicYears(yearsRes.data || []);
 
-        // Auto-select logic
-        if (subsRes.data?.length === 1) {
-          setSelectedSubject(subsRes.data[0].id.toString());
+          // Auto-select jika hanya 1 mapel
+          if (subs.length === 1) {
+            setSelectedSubject(subs[0].id.toString());
+          }
+
+          const activeYear = (yearsRes.data || []).find((y: any) => y.isActive);
+          if (activeYear) setSelectedYear(activeYear.id.toString());
+          else if (yearsRes.data?.length > 0) setSelectedYear(yearsRes.data[0].id.toString());
+
+        } else {
+          // Guru/Guardian: gunakan endpoint LMS
+          const [subsRes, classesRes, yearsRes] = await Promise.all([
+            apiService.getAll("/lms/subjects"),
+            apiService.getAll("/lms/classes"),
+            apiService.getAll("/academic-years")
+          ]);
+
+          setSubjects(subsRes.data || []);
+          setTeacherClasses(classesRes.data || []);
+          setAcademicYears(yearsRes.data || []);
+
+          if (subsRes.data?.length === 1) {
+            setSelectedSubject(subsRes.data[0].id.toString());
+          }
+          if (classesRes.data?.length === 1) {
+            setSelectedClass(classesRes.data[0].id.toString());
+          }
+
+          const activeYear = (yearsRes.data || []).find((y: any) => y.isActive);
+          if (activeYear) setSelectedYear(activeYear.id.toString());
+          else if (yearsRes.data?.length > 0) setSelectedYear(yearsRes.data[0].id.toString());
         }
-        if (classesRes.data?.length === 1) {
-          setSelectedClass(classesRes.data[0].id.toString());
-        }
-
-        const activeYear = (yearsRes.data || []).find((y: any) => y.isActive);
-        if (activeYear) setSelectedYear(activeYear.id.toString());
-        else if (yearsRes.data?.length > 0) setSelectedYear(yearsRes.data[0].id.toString());
 
       } catch (error: any) {
         console.error("FILTER ERROR:", error?.response?.data || error);

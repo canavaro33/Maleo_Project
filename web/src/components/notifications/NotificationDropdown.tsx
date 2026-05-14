@@ -2,8 +2,6 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowRight, BellOff } from "lucide-react";
 import NotificationItem from "./NotificationItem";
-import { useQuery } from "@tanstack/react-query";
-import api from "@/lib/axios";
 
 interface Announcement {
   id: number;
@@ -16,27 +14,23 @@ interface Announcement {
 interface NotificationDropdownProps {
   isOpen: boolean;
   onClose: () => void;
+  notifications?: Announcement[];
+  isLoading?: boolean;
+  isError?: boolean;
+  userId: number | null;
   onReadUpdate: () => void;
 }
 
 const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   isOpen,
   onClose,
+  notifications,
+  isLoading,
+  isError,
+  userId,
   onReadUpdate,
 }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["notifications", "latest"],
-    queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: Announcement[] }>(
-        "/notifications/latest"
-      );
-      return response.data.data.slice(0, 5);
-    },
-    refetchInterval: 120000, // 2 minutes polling
-    enabled: isOpen,
-  });
 
   // Handle outside click
   useEffect(() => {
@@ -50,10 +44,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       document.addEventListener("mousedown", handleClickOutside);
       
       // Mark as read when opened
-      if (data && data.length > 0) {
-        const currentReadIds = JSON.parse(localStorage.getItem("readAnnouncements") || "[]");
-        const newReadIds = Array.from(new Set([...currentReadIds, ...data.map((a) => a.id)]));
-        localStorage.setItem("readAnnouncements", JSON.stringify(newReadIds));
+      if (notifications && notifications.length > 0 && userId !== null) {
+        const storageKey = `readAnnouncements_${userId}`;
+        const currentReadIds = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        const newReadIds = Array.from(new Set([...currentReadIds, ...notifications.map((a) => a.id)]));
+        localStorage.setItem(storageKey, JSON.stringify(newReadIds));
         onReadUpdate();
       }
     }
@@ -61,7 +56,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isOpen, data, onClose, onReadUpdate]);
+  }, [isOpen, notifications, onClose, onReadUpdate, userId]);
 
   if (!isOpen) return null;
 
@@ -85,7 +80,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             <p className="text-xs text-slate-400 font-medium">Memuat pengumuman...</p>
           </div>
-        ) : isError || !data || data.length === 0 ? (
+        ) : isError || !notifications || notifications.length === 0 ? (
           <div className="p-10 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
               <BellOff className="w-6 h-6 text-slate-300" />
@@ -95,7 +90,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {data.map((item) => (
+            {notifications.slice(0, 5).map((item) => (
               <NotificationItem key={item.id} {...item} />
             ))}
           </div>

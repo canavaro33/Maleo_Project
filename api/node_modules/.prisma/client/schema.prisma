@@ -443,3 +443,27 @@ model TeacherAttendance {
   @@unique([teacherId, date])
   @@map("teacher_attendances")
 }
+
+enum ConsultationStatus {
+  unread
+  read
+  replied
+}
+
+model Consultation {
+  id         Int                @id @default(autoincrement())
+  senderId   Int                @map("sender_id")
+  receiverId Int                @map("receiver_id")
+  senderRole Role               @map("sender_role")
+  subject    String
+  message    String             @db.Text
+  status     ConsultationStatus @default(unread)
+  parentId   Int?               @map("parent_id")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+
+  parent  Consultation?  @relation("ConsultationReplies", fields: [parentId], references: [id])
+  replies Consultation[] @relation("ConsultationReplies")
+
+  @@map("consultations")
+}

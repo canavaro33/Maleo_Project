@@ -24,6 +24,8 @@ import principalRouter from "./routes/principal.route";
 import teacherAttendancesRouter from "./routes/teacher-attendances.route";
 import notificationRouter from "./routes/notification.route";
 import lmsRouter from "./routes/lms.route";
+import profileRouter from "./routes/profile.route";
+import connectRouter from "./routes/connect.route";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -60,6 +62,8 @@ app.use("/api/hub/teacher/learning-modules", learningModulesRouter);
 app.use("/api/hub/teacher", hubTeacherRouter);
 app.use("/api/hub", hubRouter);
 app.use("/api/lms", lmsRouter);
+app.use("/api/profile", profileRouter);
+app.use("/api/connect", connectRouter);
 
 // Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

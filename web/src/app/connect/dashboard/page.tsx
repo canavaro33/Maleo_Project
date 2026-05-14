@@ -1,19 +1,44 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Users, Award, ClipboardCheck, Megaphone } from "lucide-react";
-import { students } from "@/lib/mock-data";
+import { Badge } from "@/components/ui/Badge";
+import { apiService } from "@/services/apiService";
 
 export default function ConnectDashboard() {
-  // Mock data for guardian's children
-  const myChildren = students.slice(0, 2);
+  const [summary, setSummary] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const res = await apiService.getAll("/connect/dashboard");
+        setSummary(res.data);
+      } catch (error) {
+        console.error("Gagal fetch dashboard wali murid", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboard();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center min-h-[60vh]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground">Selamat datang di Maleo Connect — Pantau Perkembangan Akademik Anak Anda</p>
+        <h1 className="text-3xl font-bold text-foreground">Dashboard Wali Murid</h1>
+        <p className="text-muted-foreground">
+          Selamat datang, {summary?.guardian?.name}! Pantau Perkembangan Akademik Anak Anda
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -24,7 +49,7 @@ export default function ConnectDashboard() {
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Anak</p>
-              <h3 className="text-2xl font-bold text-foreground">{myChildren.length} Anak</h3>
+              <h3 className="text-2xl font-bold text-foreground">{summary?.totalChildren ?? 0} Anak</h3>
             </div>
           </div>
         </Card>
@@ -35,8 +60,8 @@ export default function ConnectDashboard() {
               <ClipboardCheck size={24} />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Rata-rata Kehadiran</p>
-              <h3 className="text-2xl font-bold text-foreground">98%</h3>
+              <p className="text-sm font-medium text-muted-foreground">Status Aktif</p>
+              <h3 className="text-xl font-bold text-foreground">Terhubung</h3>
             </div>
           </div>
         </Card>
@@ -47,8 +72,8 @@ export default function ConnectDashboard() {
               <Award size={24} />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Rata-rata Nilai</p>
-              <h3 className="text-2xl font-bold text-foreground">86.4</h3>
+              <p className="text-sm font-medium text-muted-foreground">Semester</p>
+              <h3 className="text-xl font-bold text-foreground">{summary?.academicYear ?? "-"}</h3>
             </div>
           </div>
         </Card>
@@ -59,8 +84,8 @@ export default function ConnectDashboard() {
               <Megaphone size={24} />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Pengumuman Baru</p>
-              <h3 className="text-2xl font-bold text-foreground">1</h3>
+              <p className="text-sm font-medium text-muted-foreground">Pengumuman</p>
+              <h3 className="text-2xl font-bold text-foreground">{summary?.unreadAnnouncements ?? 0}</h3>
             </div>
           </div>
         </Card>
@@ -68,27 +93,42 @@ export default function ConnectDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="p-6 col-span-2">
-          <h3 className="text-lg font-bold mb-4">Ringkasan Anak</h3>
+          <h3 className="text-lg font-bold mb-4">Anak Anda</h3>
           <div className="space-y-4">
-            {myChildren.map((child) => (
-              <div key={child.id} className="flex items-center justify-between p-4 rounded-xl border border-border">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-lg">
-                    {child.name.charAt(0)}
+            {summary?.children && summary.children.length > 0 ? (
+              summary.children.map((child: any) => (
+                <div key={child.id} className="p-4 border rounded-xl bg-card border-border">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-lg">
+                        {child.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-lg text-foreground">{child.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {child.nis} • {child.class?.name}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant={child.attendanceRate >= 75 ? "success" : "danger"}>
+                      {child.attendanceRate}% Hadir
+                    </Badge>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-lg">{child.name}</h4>
-                    <p className="text-sm text-muted-foreground">Kelas {child.gradeName} • {child.nis}</p>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="text-center p-3 bg-muted rounded-lg border border-border">
+                      <p className="text-2xl font-bold text-foreground">{child.avgGrade}</p>
+                      <p className="text-xs font-medium text-muted-foreground mt-1">Rata-rata Nilai</p>
+                    </div>
+                    <div className="text-center p-3 bg-muted rounded-lg border border-border">
+                      <p className="text-2xl font-bold text-foreground">{child.activeAssignments}</p>
+                      <p className="text-xs font-medium text-muted-foreground mt-1">Tugas Aktif</p>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-sm">
-                    <Award size={16} />
-                    <span className="font-semibold">Nilai: 85</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground italic text-center p-8 bg-muted rounded-xl">Belum ada data anak yang terhubung ke akun Anda.</p>
+            )}
           </div>
         </Card>
 
@@ -96,9 +136,16 @@ export default function ConnectDashboard() {
           <h3 className="text-lg font-bold mb-4">Informasi Sekolah</h3>
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
-              <h4 className="font-semibold text-orange-900">Rapat Wali Murid</h4>
-              <p className="text-sm text-orange-700 mt-1">Pengambilan rapot semester ganjil pada 20 Desember 2025.</p>
+              <h4 className="font-semibold text-orange-900">Selamat Datang di Portal Wali Murid</h4>
+              <p className="text-sm text-orange-700 mt-1">Gunakan portal ini untuk memantau kehadiran, nilai, dan informasi akademik anak Anda.</p>
             </div>
+            {summary?.announcements?.map((ann: any) => (
+              <div key={ann.id} className="p-4 rounded-xl bg-muted border border-border">
+                <h4 className="font-semibold text-sm">{ann.title}</h4>
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{ann.content}</p>
+                <p className="text-[10px] text-muted-foreground mt-2">{new Date(ann.createdAt).toLocaleDateString()}</p>
+              </div>
+            ))}
           </div>
         </Card>
       </div>

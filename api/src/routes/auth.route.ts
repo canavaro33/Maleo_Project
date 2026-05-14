@@ -117,6 +117,18 @@ router.get("/me", verifyJWT, async (req: AuthRequest, res: Response) => {
             id: true,
             class: { select: { id: true, name: true } }
           }
+        },
+        guardian: {
+          select: {
+            id: true,
+            students: {
+              select: {
+                id: true,
+                name: true,
+                class: { select: { id: true, name: true } }
+              }
+            }
+          }
         }
       },
     });

@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { apiService } from "@/services/apiService";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Clock, CheckCircle, AlertCircle } from "lucide-react";
 
 export default function TeacherCheckinPage() {
   const [todayStatus, setTodayStatus] = useState<any>(null);
@@ -19,10 +19,10 @@ export default function TeacherCheckinPage() {
 
   const fetchTodayStatus = async () => {
     try {
-      const res = await apiService.get("/teacher-attendances/today");
+      const res = await apiService.getAll("/teacher-attendances/today");
       setTodayStatus(res.data);
     } catch (error) {
-      console.error(error);
+      console.error("Gagal mengambil status kehadiran:", error);
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,7 @@ export default function TeacherCheckinPage() {
     
     setIsSubmitting(true);
     try {
-      await apiService.post("/teacher-attendances/checkin", form);
+      await apiService.create("/teacher-attendances/checkin", form);
       fetchTodayStatus();
     } catch (error: any) {
       alert(error.response?.data?.message || "Gagal check-in.");
@@ -47,6 +47,14 @@ export default function TeacherCheckinPage() {
 
   if (loading) {
     return <div className="p-6 text-center">Memuat status kehadiran...</div>;
+  }
+
+  if (!todayStatus) {
+    return (
+      <div className="p-6 text-center text-rose-500 font-medium">
+        Gagal memuat status kehadiran. Pastikan data guru Anda valid atau muat ulang halaman.
+      </div>
+    );
   }
 
   const { hasCheckedIn, attendance, isWindowOpen, windowMessage, currentTime } = todayStatus;
@@ -66,7 +74,7 @@ export default function TeacherCheckinPage() {
 
       {hasCheckedIn ? (
         <Card className="border-emerald-200 shadow-emerald-100 shadow-md">
-          <CardContent className="p-8 flex flex-col items-center justify-center text-center space-y-4">
+          <div className="p-8 flex flex-col items-center justify-center text-center space-y-4">
             <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center">
               <CheckCircle size={32} className="text-emerald-600" />
             </div>
@@ -109,11 +117,11 @@ export default function TeacherCheckinPage() {
                 </div>
               )}
             </div>
-          </CardContent>
+          </div>
         </Card>
       ) : (
         <Card className="shadow-md">
-          <CardContent className="p-6 pt-6">
+          <div className="p-6 pt-6">
             {!isWindowOpen && (
               <div className="mb-6 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-4 flex items-start gap-3">
                 <AlertCircle size={20} className="shrink-0 mt-0.5" />
@@ -184,7 +192,7 @@ export default function TeacherCheckinPage() {
                 {isSubmitting ? "Memproses..." : "Konfirmasi Kehadiran"}
               </button>
             </div>
-          </CardContent>
+          </div>
         </Card>
       )}
     </div>

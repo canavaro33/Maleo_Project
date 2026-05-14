@@ -17,6 +17,7 @@ import {
   PlusCircle,
   UserCircle,
   UserCheck,
+  MessageCircle,
 } from "lucide-react";
 
 const menuItemsTeacher = [
@@ -34,24 +35,25 @@ const menuItemsTeacher = [
     ],
   },
   {
+    label: "Akademik",
+    items: [
+      { name: "Nilai", href: "/hub/grades", icon: Award },
+      { name: "Input Absensi", href: "/hub/absensi/input", icon: PlusCircle },
+      { name: "Jadwal", href: "/hub/schedules", icon: Clock },
+    ],
+  },
+  {
     label: "Kehadiran",
     items: [
       { name: "Check-in Hari Ini", href: "/hub/checkin", icon: UserCheck },
     ],
   },
   {
-    label: "Akademik",
-    items: [
-      { name: "Nilai", href: "/hub/grades", icon: Award },
-      { name: "Kehadiran Siswa", href: "/hub/attendance", icon: ClipboardCheck },
-      { name: "Input Absensi", href: "/hub/absensi/input", icon: PlusCircle },
-      { name: "Jadwal", href: "/hub/schedules", icon: Clock },
-    ],
-  },
-  {
     label: "Informasi",
     items: [
+      { name: "Konsultasi Wali", href: "/hub/consultations", icon: MessageCircle },
       { name: "Pengumuman", href: "/hub/announcements", icon: Megaphone },
+      { name: "Profil Saya", href: "/settings/profile", icon: UserCircle },
     ],
   },
 ];

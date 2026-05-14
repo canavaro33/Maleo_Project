@@ -139,16 +139,48 @@ router.put(
   validate(guardianSchema.partial()),
   async (req: Request, res: Response) => {
     try {
-      const guardian = await prisma.guardian.update({
-        where: { id: Number(req.params.id) },
-        data: req.body,
+      const data = req.body;
+      const guardianId = Number(req.params.id);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const updatedGuardian = await tx.guardian.update({
+          where: { id: guardianId },
+          data,
+        });
+
+        // Jika email atau nama diupdate, sinkronkan ke tabel User
+        if (data.email || data.name) {
+          const updateData: any = {};
+          if (data.name) updateData.name = data.name;
+          if (data.email) {
+            updateData.email = data.email;
+            updateData.nipNis = data.email;
+          }
+
+          // Update user yang terkait
+          const user = await tx.user.findUnique({ where: { guardianId } });
+          if (user) {
+            await tx.user.update({
+              where: { id: user.id },
+              data: updateData,
+            });
+          }
+        }
+
+        return updatedGuardian;
       });
-      res.json({ success: true, message: "Wali murid berhasil diperbarui", data: guardian });
+
+      res.json({ success: true, message: "Wali murid berhasil diperbarui", data: result });
     } catch (error: any) {
       if (error.code === "P2025") {
         res.status(404).json({ success: false, message: "Wali murid tidak ditemukan" });
         return;
       }
+      if (error.code === "P2002") {
+        res.status(400).json({ success: false, message: "Email atau nomor telepon sudah digunakan" });
+        return;
+      }
+      console.error("[Guardians] PUT error:", error);
       res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
     }
   }
@@ -161,16 +193,123 @@ router.delete(
   checkRole("admin"),
   async (req: Request, res: Response) => {
     try {
-      await prisma.guardian.delete({ where: { id: Number(req.params.id) } });
+      const guardianId = Number(req.params.id);
+
+      await prisma.$transaction(async (tx) => {
+        // Hapus user yang terkait terlebih dahulu
+        await tx.user.deleteMany({
+          where: { guardianId },
+        });
+
+        // Hapus guardian
+        await tx.guardian.delete({
+          where: { id: guardianId },
+        });
+      });
+
       res.json({ success: true, message: "Wali murid berhasil dihapus" });
     } catch (error: any) {
       if (error.code === "P2025") {
         res.status(404).json({ success: false, message: "Wali murid tidak ditemukan" });
         return;
       }
+      console.error("[Guardians] DELETE error:", error);
       res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
     }
   }
 );
+
+// GET /api/guardians/:id/students
+router.get("/:id/students", verifyJWT, async (req: Request, res: Response) => {
+  try {
+    const guardian = await prisma.guardian.findUnique({
+      where: { id: Number(req.params.id) },
+      include: {
+        students: {
+          select: {
+            id: true,
+            name: true,
+            nis: true,
+            status: true,
+            class: { select: { name: true } }
+          }
+        }
+      }
+    });
+
+    if (!guardian) {
+      res.status(404).json({ success: false, message: "Wali murid tidak ditemukan." });
+      return;
+    }
+
+    res.json({ success: true, data: guardian.students });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
+  }
+});
+
+// POST /api/guardians/:id/assign-student
+router.post("/:id/assign-student", verifyJWT, async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "admin") {
+      res.status(403).json({ success: false, message: "Akses ditolak." });
+      return;
+    }
+
+    const { studentId } = req.body;
+    if (!studentId) {
+      res.status(400).json({ success: false, message: "studentId wajib diisi." });
+      return;
+    }
+
+    // Cek apakah student sudah terhubung
+    const existing = await prisma.guardian.findFirst({
+      where: {
+        id: Number(req.params.id),
+        students: { some: { id: Number(studentId) } }
+      }
+    });
+
+    if (existing) {
+      res.status(400).json({
+        success: false,
+        message: "Siswa sudah terhubung ke wali murid ini."
+      });
+      return;
+    }
+
+    await prisma.guardian.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        students: { connect: { id: Number(studentId) } }
+      }
+    });
+
+    res.json({ success: true, message: "Siswa berhasil dihubungkan ke wali murid." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
+  }
+});
+
+// DELETE /api/guardians/:id/remove-student/:studentId
+router.delete("/:id/remove-student/:studentId", verifyJWT, async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "admin") {
+      res.status(403).json({ success: false, message: "Akses ditolak." });
+      return;
+    }
+
+    await prisma.guardian.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        students: { disconnect: { id: Number(req.params.studentId) } }
+      }
+    });
+
+    res.json({ success: true, message: "Relasi siswa berhasil dilepas." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
+  }
+});
 
 export default router;

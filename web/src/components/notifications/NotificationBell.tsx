@@ -13,9 +13,20 @@ interface Announcement {
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userId, setUserId] = useState<number | null>(null);
 
-  const { data: notifications } = useQuery({
-    queryKey: ["notifications", "latest"],
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserId(user.id);
+      } catch (e) {}
+    }
+  }, []);
+
+  const { data: notifications, isLoading, isError } = useQuery({
+    queryKey: ["notifications", "latest", userId],
     queryFn: async () => {
       const response = await api.get<{ success: boolean; data: Announcement[] }>(
         "/notifications/latest"
@@ -23,19 +34,20 @@ export function NotificationBell() {
       return response.data.data;
     },
     refetchInterval: 120000,
+    enabled: userId !== null,
   });
 
   const calculateUnreadCount = useCallback(() => {
-    if (!notifications) return;
+    if (!notifications || userId === null) return;
     
-    const readIds = JSON.parse(localStorage.getItem("readAnnouncements") || "[]");
+    const readIds = JSON.parse(localStorage.getItem(`readAnnouncements_${userId}`) || "[]");
     const unread = notifications.filter((n) => !readIds.includes(n.id));
     setUnreadCount(unread.length);
-  }, [notifications]);
+  }, [notifications, userId]);
 
   useEffect(() => {
     calculateUnreadCount();
-  }, [calculateUnreadCount, notifications]);
+  }, [calculateUnreadCount]);
 
   return (
     <div className="relative">
@@ -55,6 +67,10 @@ export function NotificationBell() {
       <NotificationDropdown
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
+        notifications={notifications}
+        isLoading={isLoading}
+        isError={isError}
+        userId={userId}
         onReadUpdate={calculateUnreadCount}
       />
     </div>

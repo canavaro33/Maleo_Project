@@ -52,10 +52,73 @@ export default function GuardiansPage() {
     }
   };
 
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedGuardian, setSelectedGuardian] = useState<Guardian | null>(null);
+  const [guardianStudents, setGuardianStudents] = useState<any[]>([]);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [assignStudentId, setAssignStudentId] = useState("");
+
+  const fetchAllStudents = async () => {
+    try {
+      const res = await apiService.getAll("/students");
+      setAllStudents(res.data || []);
+    } catch (e) {
+      console.error("Gagal mengambil data siswa");
+    }
+  };
+
+  const openAssignModal = async (guardian: Guardian) => {
+    setSelectedGuardian(guardian);
+    setIsAssignModalOpen(true);
+    try {
+      const res = await apiService.getAll(`/guardians/${guardian.id}/students`);
+      setGuardianStudents(res.data || []);
+    } catch (e) {
+      console.error("Gagal mengambil data anak guardian");
+    }
+  };
+
+  const handleAssignStudent = async () => {
+    if (!assignStudentId || !selectedGuardian) return;
+    setIsSubmitting(true);
+    try {
+      await apiService.create(
+        `/guardians/${selectedGuardian.id}/assign-student`,
+        { studentId: Number(assignStudentId) }
+      );
+      const res = await apiService.getAll(`/guardians/${selectedGuardian.id}/students`);
+      setGuardianStudents(res.data || []);
+      setAssignStudentId("");
+      await fetchGuardians(); // refresh list
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal assign siswa.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRemoveStudent = async (studentId: number) => {
+    if (!selectedGuardian) return;
+    if (!window.confirm("Lepas relasi siswa ini dari wali murid?")) return;
+    try {
+      await apiService.remove(
+        `/guardians/${selectedGuardian.id}/remove-student`,
+        studentId
+      );
+      setGuardianStudents(prev => prev.filter(s => s.id !== studentId));
+      await fetchGuardians(); // refresh list
+    } catch (err: any) {
+      alert("Gagal melepas relasi.");
+    }
+  };
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     setRole(user.role || "admin");
     fetchGuardians();
+    if (user.role !== "kepala_sekolah") {
+      fetchAllStudents();
+    }
   }, []);
 
   const filtered = guardians.filter(
@@ -190,19 +253,20 @@ export default function GuardiansPage() {
                         {guardian.children && guardian.children.length > 0 ? (
                           guardian.children.map((child) => (
                             <div key={child.id} className="flex items-center gap-2">
-                              <Users size={12} className="text-muted-foreground" />
-                              <span className="text-xs">{child.name}</span>
-                              <Badge variant="info">{child.className}</Badge>
+                              <Badge variant="info">{child.name}</Badge>
                             </div>
                           ))
                         ) : (
-                          <span className="text-xs text-muted-foreground italic">Belum terhubung</span>
+                          <span className="text-xs text-muted-foreground italic">Belum ada</span>
                         )}
                       </div>
                     </td>
                     {role !== "kepala_sekolah" && (
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-end gap-1">
+                          <Button variant="secondary" size="sm" onClick={() => openAssignModal(guardian)} className="text-emerald-600 hover:bg-emerald-50 h-8 px-2 mr-2">
+                            <Users size={16} className="mr-1" /> Kelola Anak
+                          </Button>
                           <button onClick={() => openEdit(guardian)} className="p-2 rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
                             <Pencil size={16} />
                           </button>
@@ -236,6 +300,53 @@ export default function GuardiansPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} title={`Kelola Anak — ${selectedGuardian?.name}`} size="lg">
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm font-medium mb-2">Anak Terdaftar:</p>
+            {guardianStudents.length > 0 ? (
+              <div className="space-y-2">
+                {guardianStudents.map(student => (
+                  <div key={student.id} className="flex items-center justify-between p-3 bg-muted rounded-lg border border-border">
+                    <div>
+                      <p className="font-medium text-sm text-foreground">{student.name}</p>
+                      <p className="text-xs text-muted-foreground">{student.nis} • {student.class?.name}</p>
+                    </div>
+                    <button onClick={() => handleRemoveStudent(student.id)} className="text-red-500 hover:bg-red-50 hover:text-red-600 p-1 rounded transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Belum ada anak yang terhubung.</p>
+            )}
+          </div>
+
+          <div className="border-t pt-4 border-border">
+            <p className="text-sm font-medium mb-2">Hubungkan Siswa Baru:</p>
+            <div className="flex gap-2 items-center">
+              <select
+                className="flex-1 h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                value={assignStudentId}
+                onChange={e => setAssignStudentId(e.target.value)}
+              >
+                <option value="">Pilih siswa...</option>
+                {allStudents
+                  .filter(s => !guardianStudents.find(gs => gs.id === s.id))
+                  .map(s => (
+                    <option key={s.id} value={s.id}>{s.name} — {s.class?.name || ''}</option>
+                  ))
+                }
+              </select>
+              <Button onClick={handleAssignStudent} disabled={!assignStudentId || isSubmitting}>
+                {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : "Hubungkan"}
+              </Button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -16,7 +16,8 @@ export function middleware(request: NextRequest) {
   const isAdminPath = adminPaths.some(p => pathname.startsWith(p));
   const isHubPath = pathname.startsWith('/hub');
   const isConnectPath = pathname.startsWith('/connect');
-  const isProtected = isAdminPath || isHubPath || isConnectPath ||
+  const isSettingsPath = pathname.startsWith('/settings');
+  const isProtected = isAdminPath || isHubPath || isConnectPath || isSettingsPath ||
                       pathname === '/force-change-password';
 
   // Belum login → redirect ke /login
@@ -113,6 +114,7 @@ export const config = {
     '/scores/:path*',
     '/hub/:path*',
     '/connect/:path*',
+    '/settings/:path*',
     '/force-change-password',
     '/login',
   ],

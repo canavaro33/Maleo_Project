@@ -13,6 +13,7 @@ import {
   Megaphone,
   ChevronLeft,
   ChevronRight,
+  MessageCircle,
 } from "lucide-react";
 
 const menuItems = [
@@ -34,6 +35,7 @@ const menuItems = [
   {
     label: "Informasi",
     items: [
+      { name: "Konsultasi Guru", href: "/connect/consultations", icon: MessageCircle },
       { name: "Pengumuman", href: "/connect/announcements", icon: Megaphone },
     ],
   },

@@ -432,7 +432,198 @@ router.get("/teacher-subjects", async (req: any, res: Response) => {
   }
 });
 
-// 5. GET /api/hub/schedules
+// 5. GET /api/hub/student-subjects → mapel siswa berdasarkan kelas
+router.get("/student-subjects", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ success: false, message: "Akses ditolak. Hanya untuk Siswa." });
+    }
+
+    const classId = req.classId;
+    if (!classId) {
+      return res.status(400).json({ success: false, message: "Data kelas siswa tidak ditemukan." });
+    }
+
+    // Ambil subjects unik dari jadwal kelas ini
+    const schedules = await prisma.schedule.findMany({
+      where: { classId },
+      select: {
+        subject: { select: { id: true, name: true } }
+      },
+      distinct: ['subjectId']
+    });
+
+    const subjects = schedules
+      .map(s => s.subject)
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+
+    res.json({ success: true, data: subjects });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengambil mata pelajaran." });
+  }
+});
+
+// 6. GET /api/hub/grades → nilai siswa atau siswa yang diajar guru
+router.get("/grades", async (req: any, res: Response) => {
+  try {
+    const { role } = req.user;
+    const { subjectId, classId, type } = req.query;
+    let grades: any[] = [];
+
+    if (role === "student") {
+      const where: any = { studentId: req.studentId };
+      if (subjectId) where.subjectId = Number(subjectId);
+      if (type) where.type = type;
+
+      grades = await prisma.grade.findMany({
+        where,
+        include: {
+          subject: { select: { name: true } }
+        },
+        orderBy: { date: 'desc' }
+      });
+    } else if (role === "teacher") {
+      const where: any = { subject: { teacherId: req.teacherId } };
+      if (subjectId) where.subjectId = Number(subjectId);
+      if (classId) where.student = { classId: Number(classId) };
+      if (type) where.type = type;
+
+      grades = await prisma.grade.findMany({
+        where,
+        include: {
+          subject: { select: { name: true } },
+          student: {
+            select: {
+              name: true,
+              nis: true,
+              class: { select: { name: true } }
+            }
+          }
+        },
+        orderBy: { date: 'desc' }
+      });
+    } else {
+      return res.status(403).json({ success: false, message: "Akses ditolak." });
+    }
+
+    res.json({ success: true, data: grades });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengambil data nilai." });
+  }
+});
+
+// POST /api/hub/grades → input nilai (guru only)
+router.post("/grades", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "teacher") {
+      return res.status(403).json({ success: false, message: "Akses ditolak. Hanya untuk Guru." });
+    }
+
+    const { studentId, subjectId, type, score, maxScore, date } = req.body;
+
+    if (!studentId || !subjectId || !type || score === undefined) {
+      return res.status(400).json({ success: false, message: "Field studentId, subjectId, type, dan score wajib diisi." });
+    }
+
+    // Pastikan subject milik guru ini
+    const subject = await prisma.subject.findFirst({
+      where: { id: Number(subjectId), teacherId: req.teacherId }
+    });
+    if (!subject) {
+      return res.status(403).json({ success: false, message: "Mata pelajaran tidak valid atau bukan milik Anda." });
+    }
+
+    const grade = await prisma.grade.create({
+      data: {
+        studentId: Number(studentId),
+        subjectId: Number(subjectId),
+        type,
+        score: Number(score),
+        maxScore: maxScore ? Number(maxScore) : 100,
+        date: date ? new Date(date) : new Date()
+      }
+    });
+
+    res.status(201).json({ success: true, message: "Nilai berhasil disimpan.", data: grade });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal menyimpan nilai." });
+  }
+});
+
+// DELETE /api/hub/grades/:id → hapus nilai (guru only)
+router.delete("/grades/:id", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "teacher") {
+      return res.status(403).json({ success: false, message: "Akses ditolak." });
+    }
+
+    const gradeId = Number(req.params.id);
+    const existing = await prisma.grade.findFirst({
+      where: { id: gradeId, subject: { teacherId: req.teacherId } }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Nilai tidak ditemukan." });
+    }
+
+    await prisma.grade.delete({ where: { id: gradeId } });
+    res.json({ success: true, message: "Nilai berhasil dihapus." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal menghapus nilai." });
+  }
+});
+
+// GET /api/hub/attendance-summary → rekap kehadiran siswa bulan ini
+router.get("/attendance-summary", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ success: false, message: "Akses ditolak. Hanya untuk Siswa." });
+    }
+
+    const { month, year } = req.query;
+    const now = new Date();
+    const targetMonth = month ? Number(month) - 1 : now.getMonth();
+    const targetYear = year ? Number(year) : now.getFullYear();
+
+    const startDate = new Date(targetYear, targetMonth, 1);
+    const endDate = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        studentId: req.studentId,
+        date: { gte: startDate, lte: endDate }
+      },
+      orderBy: { date: 'asc' }
+    });
+
+    const summary = {
+      hadir: attendances.filter(a => a.status === 'hadir').length,
+      izin: attendances.filter(a => a.status === 'izin').length,
+      sakit: attendances.filter(a => a.status === 'sakit').length,
+      alpa: attendances.filter(a => a.status === 'alpa').length,
+      total: attendances.length
+    };
+
+    const presentRate = summary.total > 0
+      ? Math.round(((summary.hadir + summary.izin + summary.sakit) / summary.total) * 100)
+      : 100;
+
+    res.json({
+      success: true,
+      data: {
+        summary,
+        presentRate,
+        records: attendances,
+        month: targetMonth + 1,
+        year: targetYear
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengambil data kehadiran." });
+  }
+});
+
+// 7. GET /api/hub/schedules
 router.get("/schedules", async (req: any, res: Response) => {
   try {
     const { role } = req.user;
@@ -460,6 +651,100 @@ router.get("/schedules", async (req: any, res: Response) => {
   } catch (error) {
     console.error("[Hub] Schedules error:", error);
     res.status(500).json({ success: false, message: "Gagal mengambil data jadwal." });
+  }
+});
+
+// GET /api/hub/consultations
+// → guru lihat semua thread konsultasi yang masuk
+router.get("/consultations", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "teacher") {
+      return res.status(403).json({ success: false, message: "Akses ditolak." });
+    }
+
+    const consultations = await prisma.consultation.findMany({
+      where: {
+        parentId: null,
+        receiverId: req.user.id
+      },
+      include: {
+        replies: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        },
+        _count: { select: { replies: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    res.json({ success: true, data: consultations });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengambil konsultasi." });
+  }
+});
+
+// GET /api/hub/consultations/:id
+// → guru buka detail thread
+router.get("/consultations/:id", async (req: any, res: Response) => {
+  try {
+    const consultation = await prisma.consultation.findUnique({
+      where: { id: Number(req.params.id) },
+      include: { replies: { orderBy: { createdAt: "asc" } } }
+    });
+
+    if (!consultation) {
+      return res.status(404).json({ success: false, message: "Tidak ditemukan." });
+    }
+
+    // Mark as read
+    await prisma.consultation.update({
+      where: { id: Number(req.params.id) },
+      data: { status: "read" }
+    });
+
+    res.json({ success: true, data: consultation });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal." });
+  }
+});
+
+// POST /api/hub/consultations/:id/reply
+// → guru reply ke thread wali murid
+router.post("/consultations/:id/reply", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "teacher") {
+      return res.status(403).json({ success: false, message: "Akses ditolak." });
+    }
+
+    const { message } = req.body;
+    const parent = await prisma.consultation.findUnique({
+      where: { id: Number(req.params.id) }
+    });
+
+    if (!parent) {
+      return res.status(404).json({ success: false, message: "Thread tidak ditemukan." });
+    }
+
+    const reply = await prisma.consultation.create({
+      data: {
+        senderId: req.user.id,
+        receiverId: parent.senderId,
+        senderRole: "teacher",
+        subject: parent.subject,
+        message,
+        parentId: parent.id,
+        status: "unread"
+      }
+    });
+
+    await prisma.consultation.update({
+      where: { id: parent.id },
+      data: { status: "replied" }
+    });
+
+    res.status(201).json({ success: true, message: "Balasan terkirim.", data: reply });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengirim balasan." });
   }
 });
 

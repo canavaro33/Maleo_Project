@@ -30,6 +30,10 @@ router.get("/", verifyJWT, async (req: AuthRequest, res: Response) => {
         userCode: true,
         nipNis: true,
         createdAt: true,
+        student: true,
+        teacher: true,
+        principal: true,
+        guardian: true,
       },
     });
 
@@ -52,6 +56,15 @@ router.put("/", verifyJWT, validate(updateProfileSchema), async (req: AuthReques
     const { name, email, password } = req.body;
     const userId = req.user!.id;
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, message: "User tidak ditemukan" });
+      return;
+    }
+
     // Cek apakah email sudah digunakan oleh user lain
     if (email) {
       const existing = await prisma.user.findFirst({
@@ -71,9 +84,69 @@ router.put("/", verifyJWT, validate(updateProfileSchema), async (req: AuthReques
       updateData.password = await bcrypt.hash(password, salt);
     }
 
-    const updatedUser = await prisma.user.update({
+    const transaction: any[] = [];
+
+    // 1. Update tabel User
+    transaction.push(
+      prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      })
+    );
+
+    // 2. Update tabel spesifik berdasarkan role
+    if (name || email) {
+      if (user.studentId && name) {
+        transaction.push(
+          prisma.student.update({
+            where: { id: user.studentId },
+            data: { name },
+          })
+        );
+      }
+
+      if (user.teacherId) {
+        const teacherUpdate: any = {};
+        if (name) teacherUpdate.name = name;
+        if (email) teacherUpdate.email = email;
+        transaction.push(
+          prisma.teacher.update({
+            where: { id: user.teacherId },
+            data: teacherUpdate,
+          })
+        );
+      }
+
+      if (user.principalId) {
+        const principalUpdate: any = {};
+        if (name) principalUpdate.name = name;
+        if (email) principalUpdate.email = email;
+        transaction.push(
+          prisma.principal.update({
+            where: { id: user.principalId },
+            data: principalUpdate,
+          })
+        );
+      }
+
+      if (user.guardianId) {
+        const guardianUpdate: any = {};
+        if (name) guardianUpdate.name = name;
+        if (email) guardianUpdate.email = email;
+        transaction.push(
+          prisma.guardian.update({
+            where: { id: user.guardianId },
+            data: guardianUpdate,
+          })
+        );
+      }
+    }
+
+    await prisma.$transaction(transaction);
+
+    // Ambil data user terbaru untuk dikembalikan
+    const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
-      data: updateData,
       select: {
         id: true,
         name: true,
@@ -85,7 +158,7 @@ router.put("/", verifyJWT, validate(updateProfileSchema), async (req: AuthReques
     res.json({ success: true, message: "Profil berhasil diperbarui", data: updatedUser });
   } catch (error) {
     console.error("[Profile] PUT error:", error);
-    res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server saat memperbarui profil" });
   }
 });
 
