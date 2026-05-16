@@ -57,7 +57,7 @@ export default function TeacherCheckinPage() {
     );
   }
 
-  const { hasCheckedIn, attendance, isWindowOpen, windowMessage, currentTime } = todayStatus;
+  const { hasCheckedIn, attendance, isWindowOpen, windowMessage, currentTime, hasScheduleToday, warningMessage } = todayStatus;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -71,6 +71,19 @@ export default function TeacherCheckinPage() {
           <span className="font-mono text-lg font-bold">{new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       </div>
+
+      {/* Fix Bug 8: Warning kalau tidak ada jadwal hari ini */}
+      {!hasScheduleToday && !hasCheckedIn && warningMessage && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+          <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Tidak ada jadwal mengajar hari ini</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Anda tetap bisa melakukan check-in untuk mencatat kehadiran di sekolah.
+            </p>
+          </div>
+        </div>
+      )}
 
       {hasCheckedIn ? (
         <Card className="border-emerald-200 shadow-emerald-100 shadow-md">

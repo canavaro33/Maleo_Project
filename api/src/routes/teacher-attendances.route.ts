@@ -5,6 +5,9 @@ import { verifyJWT } from '../middleware/auth';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// ──────────────────────────────────────────────
+// GET /today — Status check-in hari ini (guru)
+// ──────────────────────────────────────────────
 router.get("/today", verifyJWT, async (req: any, res: Response) => {
   try {
     const now = new Date();
@@ -12,24 +15,32 @@ router.get("/today", verifyJWT, async (req: any, res: Response) => {
     today.setHours(0, 0, 0, 0);
     const hour = now.getHours();
 
-    // Ambil teacherId
+    // Fix Bug 4: 1 query saja via relasi langsung User → Teacher
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { nipNis: true }
-    });
-    const teacher = await prisma.teacher.findUnique({
-      where: { nip: user!.nipNis! }
+      include: { teacher: true }
     });
 
-    if (!teacher) {
-      return res.status(404).json({ success: false, message: "Data guru tidak ditemukan." });
+    if (!user?.teacher) {
+      return res.status(404).json({
+        success: false,
+        message: "Data guru tidak ditemukan. Pastikan akun Anda terhubung ke profil guru."
+      });
     }
+
+    const teacher = user.teacher;
 
     const existing = await prisma.teacherAttendance.findUnique({
       where: { teacherId_date: { teacherId: teacher.id, date: today } }
     });
 
     const isWindowOpen = hour >= 6 && hour < 10;
+
+    // Fix Bug 8: Cek apakah guru punya jadwal hari ini
+    const dayName = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"][now.getDay()];
+    const hasScheduleToday = await prisma.schedule.count({
+      where: { teacherId: teacher.id, day: dayName }
+    });
 
     res.json({
       success: true,
@@ -43,6 +54,10 @@ router.get("/today", verifyJWT, async (req: any, res: Response) => {
           ? "Waktu check-in sudah ditutup (10:00)"
           : `Check-in ditutup pukul 10:00 (${10 - hour} jam lagi)`,
         currentTime: now.toISOString(),
+        hasScheduleToday: hasScheduleToday > 0,
+        warningMessage: hasScheduleToday === 0
+          ? "Anda tidak memiliki jadwal mengajar hari ini."
+          : null,
       }
     });
   } catch (error) {
@@ -50,6 +65,9 @@ router.get("/today", verifyJWT, async (req: any, res: Response) => {
   }
 });
 
+// ──────────────────────────────────────────────
+// POST /checkin — Check-in mandiri guru
+// ──────────────────────────────────────────────
 router.post("/checkin", verifyJWT, async (req: any, res: Response) => {
   try {
     if (req.user.role !== "teacher") {
@@ -65,18 +83,20 @@ router.post("/checkin", verifyJWT, async (req: any, res: Response) => {
     const isAfterWindow = hour >= 10;
     const isBeforeWindow = hour < 6;
 
-    // Ambil teacherId dari user
+    // Fix Bug 4: 1 query saja via relasi langsung User → Teacher
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { nipNis: true }
-    });
-    const teacher = await prisma.teacher.findUnique({
-      where: { nip: user!.nipNis! }
+      include: { teacher: true }
     });
 
-    if (!teacher) {
-      return res.status(404).json({ success: false, message: "Data guru tidak ditemukan." });
+    if (!user?.teacher) {
+      return res.status(404).json({
+        success: false,
+        message: "Data guru tidak ditemukan. Pastikan akun Anda terhubung ke profil guru."
+      });
     }
+
+    const teacher = user.teacher;
 
     // Cek apakah sudah check-in hari ini
     const existing = await prisma.teacherAttendance.findUnique({
@@ -103,8 +123,7 @@ router.post("/checkin", verifyJWT, async (req: any, res: Response) => {
       });
     }
 
-    // Layer 1: Hitung keterlambatan
-    // Jam masuk seharusnya 07:00 (bisa dikonfigurasi)
+    // Layer 1: Hitung keterlambatan (jam masuk seharusnya 07:00)
     const SCHOOL_START_HOUR = 7;
     const SCHOOL_START_MINUTE = 0;
     const isLate = hour > SCHOOL_START_HOUR ||
@@ -140,75 +159,17 @@ router.post("/checkin", verifyJWT, async (req: any, res: Response) => {
   }
 });
 
-router.get("/", verifyJWT, async (req: any, res: Response) => {
+// ──────────────────────────────────────────────
+// Fix Bug 6: /export HARUS sebelum /:id
+// Fix Bug 5: tambah verifyJWT + role check
+// ──────────────────────────────────────────────
+router.get("/export", verifyJWT, async (req: any, res: Response) => {
   try {
+    // Fix Bug 5: hanya admin dan kepala sekolah yang bisa export
     if (req.user.role !== "admin" && req.user.role !== "kepala_sekolah") {
       return res.status(403).json({ success: false, message: "Akses ditolak." });
     }
 
-    const { month, year } = req.query;
-    const targetMonth = month ? Number(month) - 1 : new Date().getMonth();
-    const targetYear = year ? Number(year) : new Date().getFullYear();
-
-    const startDate = new Date(targetYear, targetMonth, 1);
-    const endDate = new Date(targetYear, targetMonth + 1, 0);
-
-    const attendances = await prisma.teacherAttendance.findMany({
-      where: {
-        date: { gte: startDate, lte: endDate }
-      },
-      include: {
-        teacher: { select: { name: true, nip: true } }
-      },
-      orderBy: [{ date: 'desc' }, { teacher: { name: 'asc' } }]
-    });
-
-    res.json({ success: true, data: attendances });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
-  }
-});
-
-router.put("/:id/override", verifyJWT, async (req: any, res: Response) => {
-  try {
-    // Hanya admin yang boleh override
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ success: false, message: "Hanya admin yang bisa override." });
-    }
-
-    const { status, note, overrideReason } = req.body;
-
-    if (!overrideReason) {
-      return res.status(400).json({
-        success: false,
-        message: "Alasan override wajib diisi untuk audit trail."
-      });
-    }
-
-    const updated = await prisma.teacherAttendance.update({
-      where: { id: Number(req.params.id) },
-      data: {
-        status,
-        note,
-        checkinType: 'admin_override',
-        overriddenBy: req.user.id,   // Layer 4: catat siapa yang ubah
-        overriddenAt: new Date(),     // Layer 4: catat kapan diubah
-        overrideReason,               // Layer 4: catat alasan
-      }
-    });
-
-    res.json({
-      success: true,
-      message: "Status kehadiran berhasil diperbarui.",
-      data: updated
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
-  }
-});
-
-router.get("/export", async (req: any, res: Response) => {
-  try {
     const { month, year } = req.query;
     const targetMonth = month ? Number(month) - 1 : new Date().getMonth();
     const targetYear = year ? Number(year) : new Date().getFullYear();
@@ -277,6 +238,139 @@ router.get("/export", async (req: any, res: Response) => {
     res.end();
   } catch (error) {
     res.status(500).json({ success: false, message: "Gagal export Excel." });
+  }
+});
+
+// ──────────────────────────────────────────────
+// GET / — List semua kehadiran (admin/kepala)
+// ──────────────────────────────────────────────
+router.get("/", verifyJWT, async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "admin" && req.user.role !== "kepala_sekolah") {
+      return res.status(403).json({ success: false, message: "Akses ditolak." });
+    }
+
+    const { month, year } = req.query;
+    const targetMonth = month ? Number(month) - 1 : new Date().getMonth();
+    const targetYear = year ? Number(year) : new Date().getFullYear();
+
+    const startDate = new Date(targetYear, targetMonth, 1);
+    const endDate = new Date(targetYear, targetMonth + 1, 0);
+
+    const attendances = await prisma.teacherAttendance.findMany({
+      where: {
+        date: { gte: startDate, lte: endDate }
+      },
+      include: {
+        teacher: { select: { name: true, nip: true } }
+      },
+      orderBy: [{ date: 'desc' }, { teacher: { name: 'asc' } }]
+    });
+
+    res.json({ success: true, data: attendances });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
+  }
+});
+
+// ──────────────────────────────────────────────
+// PUT /:id/override — Override kehadiran (admin)
+// Tetap setelah /export dan / agar tidak conflict
+// ──────────────────────────────────────────────
+router.put("/:id/override", verifyJWT, async (req: any, res: Response) => {
+  try {
+    // Hanya admin yang boleh override
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Hanya admin yang bisa override." });
+    }
+
+    const { status, note, overrideReason } = req.body;
+
+    if (!overrideReason) {
+      return res.status(400).json({
+        success: false,
+        message: "Alasan override wajib diisi untuk audit trail."
+      });
+    }
+
+    const updated = await prisma.teacherAttendance.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        status,
+        note,
+        checkinType: 'admin_override',
+        overriddenBy: req.user.id,   // Layer 4: catat siapa yang ubah
+        overriddenAt: new Date(),     // Layer 4: catat kapan diubah
+        overrideReason,               // Layer 4: catat alasan
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Status kehadiran berhasil diperbarui.",
+      data: updated
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
+  }
+});
+
+// ──────────────────────────────────────────────
+// POST /manual-input — Input manual oleh admin
+// Untuk guru yang lupa check-in sendiri
+// ──────────────────────────────────────────────
+router.post("/manual-input", verifyJWT, async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Akses ditolak." });
+    }
+
+    const { teacherId, date, status, note, overrideReason } = req.body;
+
+    if (!teacherId || !date || !status || !overrideReason) {
+      return res.status(400).json({
+        success: false,
+        message: "teacherId, date, status, dan overrideReason wajib diisi."
+      });
+    }
+
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+
+    // Cek apakah sudah ada record di tanggal itu
+    const existing = await prisma.teacherAttendance.findUnique({
+      where: { teacherId_date: { teacherId: Number(teacherId), date: targetDate } }
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "Sudah ada record kehadiran untuk guru ini di tanggal tersebut. Gunakan fitur override."
+      });
+    }
+
+    const attendance = await prisma.teacherAttendance.create({
+      data: {
+        teacherId: Number(teacherId),
+        date: targetDate,
+        status: status as any,
+        checkinAt: null,              // tidak ada timestamp karena input manual
+        checkinType: 'admin_override',
+        note: note || null,
+        isLate: false,
+        overriddenBy: req.user.id,
+        overriddenAt: new Date(),
+        overrideReason,
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Kehadiran guru berhasil diinput secara manual.",
+      data: attendance
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Terjadi kesalahan server." });
   }
 });
 

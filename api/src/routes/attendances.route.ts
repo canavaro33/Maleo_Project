@@ -129,13 +129,124 @@ router.post(
   }
 );
 
+// GET /api/attendances/export/excel — HARUS di atas GET / agar tidak di-shadow
+router.get("/export/excel", verifyJWT, async (req: Request, res: Response) => {
+  try {
+    const { classId, className, status, date, month, year } = req.query;
+    const where: any = {};
+
+    if (classId) {
+      where.student = { classId: Number(classId) };
+    } else if (className) {
+      where.student = { class: { name: String(className) } };
+    }
+
+    if (status) where.status = String(status);
+
+    if (date) {
+      const targetDate = new Date(String(date));
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(targetDate.getDate() + 1);
+      where.date = { gte: targetDate, lt: nextDay };
+    } else if (month && year) {
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      where.date = { gte: startDate, lte: endDate };
+    }
+
+    const attendances = await prisma.attendance.findMany({
+      where,
+      include: {
+        student: {
+          select: {
+            name: true,
+            nis: true,
+            class: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: [{ date: "desc" }, { student: { name: "asc" } }],
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Rekap Kehadiran");
+
+    worksheet.columns = [
+      { header: "No", key: "no", width: 5 },
+      { header: "Nama Siswa", key: "studentName", width: 30 },
+      { header: "NIS", key: "nis", width: 15 },
+      { header: "Kelas", key: "className", width: 15 },
+      { header: "Tanggal", key: "date", width: 15 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Keterangan", key: "note", width: 25 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFD3D3D3" },
+    };
+
+    attendances.forEach((att, index) => {
+      const d = att.date;
+      const formattedDate = `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
+      worksheet.addRow({
+        no: index + 1,
+        studentName: att.student.name,
+        nis: att.student.nis,
+        className: att.student.class.name,
+        date: formattedDate,
+        status: att.status.toUpperCase(),
+        note: att.note || "-",
+      });
+    });
+
+    const fileName = date
+      ? `Rekap_Kehadiran_${date}.xlsx`
+      : month && year
+      ? `Rekap_Kehadiran_${year}_${String(month).padStart(2, "0")}.xlsx`
+      : "Rekap_Kehadiran_Semua.xlsx";
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("[Attendances] Export error:", error);
+    res.status(500).json({ success: false, message: "Gagal export Excel" });
+  }
+});
+
+// GET /api/attendances — list dengan filter
 router.get("/", verifyJWT, async (req: Request, res: Response) => {
   try {
-    const { className, status, date, search } = req.query;
+    const { className, classId, status, date, search } = req.query;
     const where: any = {};
-    if (className) where.student = { class: { name: String(className) } };
+
+    // Filter kelas — support by id atau by name
+    if (classId) {
+      where.student = { classId: Number(classId) };
+    } else if (className) {
+      where.student = { class: { name: String(className) } };
+    }
+
     if (status) where.status = String(status);
-    if (date) where.date = new Date(String(date));
+
+    // FIX: gunakan range gte/lt bukan equality agar cocok dengan DateTime
+    if (date) {
+      const targetDate = new Date(String(date));
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(targetDate.getDate() + 1);
+      where.date = { gte: targetDate, lt: nextDay };
+    }
+
     if (search) {
       where.student = {
         ...where.student,
@@ -146,19 +257,30 @@ router.get("/", verifyJWT, async (req: Request, res: Response) => {
     const attendances = await prisma.attendance.findMany({
       where,
       include: {
-        student: { select: { name: true, class: { select: { name: true } } } },
+        student: {
+          select: {
+            name: true,
+            nis: true,
+            class: { select: { id: true, name: true } },
+          },
+        },
       },
       orderBy: { date: "desc" },
+      take: 500,
     });
+
     const result = attendances.map((a) => ({
       id: a.id,
       studentId: a.studentId,
       studentName: a.student.name,
+      studentNis: a.student.nis,
       className: a.student.class.name,
+      classId: a.student.class.id,
       date: a.date.toISOString().split("T")[0],
       status: a.status,
       note: a.note,
     }));
+
     res.json({ success: true, data: result, total: result.length });
   } catch (error) {
     console.error("[Attendances] GET error:", error);
@@ -227,62 +349,6 @@ router.delete(
   }
 );
 
-router.get("/export/excel", verifyJWT, async (req: Request, res: Response) => {
-  try {
-    const attendances = await prisma.attendance.findMany({
-      include: {
-        student: { select: { name: true } },
-      },
-      orderBy: { date: "desc" },
-    });
-
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Rekap Kehadiran");
-
-    worksheet.columns = [
-      { header: "No", key: "no", width: 5 },
-      { header: "Nama Siswa", key: "studentName", width: 30 },
-      { header: "Tanggal", key: "date", width: 15 },
-      { header: "Status", key: "status", width: 15 },
-      { header: "Keterangan", key: "note", width: 25 },
-    ];
-
-    // Styling Header
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFD3D3D3" },
-    };
-
-    attendances.forEach((att, index) => {
-      const d = att.date;
-      const formattedDate = `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-
-      worksheet.addRow({
-        no: index + 1,
-        studentName: att.student.name,
-        date: formattedDate,
-        status: att.status.toUpperCase(),
-        note: att.note || "-",
-      });
-    });
-
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      "attachment; filename=Rekap_Kehadiran_Maleo.xlsx"
-    );
-
-    await workbook.xlsx.write(res);
-    res.end();
-  } catch (error) {
-    console.error("[Attendances] Export error:", error);
-    res.status(500).json({ success: false, message: "Terjadi kesalahan server saat export" });
-  }
-});
+// Route export sudah dipindah ke atas GET / — lihat baris di atas
 
 export default router;

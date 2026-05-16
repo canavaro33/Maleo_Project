@@ -1,8 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { apiService } from "@/services/apiService";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { ClipboardCheck } from "lucide-react";
 
 export default function TeacherAttendancesPage() {
   const [attendances, setAttendances] = useState<any[]>([]);
@@ -27,7 +30,7 @@ export default function TeacherAttendancesPage() {
   const fetchAttendances = async () => {
     setLoading(true);
     try {
-      const res = await apiService.get("/teacher-attendances", {
+      const res = await apiService.getAll("/teacher-attendances", {
         month: selectedMonth,
         year: selectedYear,
       });
@@ -58,13 +61,14 @@ export default function TeacherAttendancesPage() {
   };
 
   const handleOverride = async () => {
-    if (!overrideForm.overrideReason) {
+    if (!overrideForm.overrideReason.trim()) {
       alert("Alasan override wajib diisi.");
       return;
     }
     try {
-      await apiService.put(
-        `/teacher-attendances/${selectedAttendance.id}/override`,
+      await apiService.update(
+        "/teacher-attendances",
+        `${selectedAttendance.id}/override`,
         overrideForm
       );
       setIsOverrideModalOpen(false);
@@ -99,43 +103,38 @@ export default function TeacherAttendancesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Kehadiran Guru</h1>
           <p className="text-muted-foreground">Monitoring kehadiran dan keterlambatan guru</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="bg-green-600 text-white px-4 py-2 rounded-md font-medium hover:bg-green-700"
-        >
+        <Button onClick={handleExport} className="bg-emerald-600 hover:bg-emerald-700 text-white">
           Export Excel
-        </button>
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Data Kehadiran</CardTitle>
-            <div className="flex gap-2">
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="border p-2 rounded-md"
-              >
-                {months.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="border p-2 rounded-md"
-              >
-                {years.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
+      <Card padding={false}>
+        <CardHeader className="px-6 pt-6 pb-4">
+          <CardTitle>Data Kehadiran</CardTitle>
+          <div className="flex gap-2">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="flex h-9 rounded-lg border border-input bg-card px-3 text-sm"
+            >
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="flex h-9 rounded-lg border border-input bg-card px-3 text-sm"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-6 pb-6">
           {loading ? (
-            <div className="text-center py-4">Memuat data...</div>
+            <div className="text-center py-8 text-muted-foreground">Memuat data...</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -154,8 +153,15 @@ export default function TeacherAttendancesPage() {
                 <tbody>
                   {attendances.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-4 text-center text-muted-foreground">
-                        Belum ada data kehadiran di bulan ini.
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <ClipboardCheck size={32} className="opacity-30" />
+                          <p className="font-medium">Belum ada data kehadiran</p>
+                          <p className="text-sm">
+                            Guru belum melakukan check-in di bulan{" "}
+                            {months.find((m) => m.value === selectedMonth)?.label} {selectedYear}
+                          </p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -207,64 +213,62 @@ export default function TeacherAttendancesPage() {
         </CardContent>
       </Card>
 
-      {isOverrideModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-lg">
-            <h3 className="text-lg font-bold mb-1">Override Kehadiran Guru</h3>
-            <p className="text-sm text-slate-500 mb-4">Guru: {selectedAttendance.teacher.name}</p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Status Baru</label>
-                <select
-                  className="w-full border p-2 rounded"
-                  value={overrideForm.status}
-                  onChange={(e) => setOverrideForm({ ...overrideForm, status: e.target.value })}
-                >
-                  <option value="hadir">Hadir</option>
-                  <option value="terlambat">Terlambat</option>
-                  <option value="izin">Izin</option>
-                  <option value="sakit">Sakit</option>
-                  <option value="alpa">Alpa</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Keterangan Tambahan</label>
-                <input
-                  type="text"
-                  className="w-full border p-2 rounded"
-                  value={overrideForm.note}
-                  onChange={(e) => setOverrideForm({ ...overrideForm, note: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Alasan Override <span className="text-red-500">*</span></label>
-                <textarea
-                  required
-                  className="w-full border p-2 rounded"
-                  placeholder="Contoh: Salah klik saat check-in"
-                  value={overrideForm.overrideReason}
-                  onChange={(e) => setOverrideForm({ ...overrideForm, overrideReason: e.target.value })}
-                ></textarea>
-                <p className="text-xs text-slate-500 mt-1">Alasan ini akan dicatat untuk audit trail.</p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => setIsOverrideModalOpen(false)}
-                className="px-4 py-2 border rounded-md"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleOverride}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-              >
-                Simpan
-              </button>
-            </div>
+      <Modal
+        isOpen={isOverrideModalOpen}
+        onClose={() => setIsOverrideModalOpen(false)}
+        title={`Override Kehadiran — ${selectedAttendance?.teacher?.name}`}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Status Baru</label>
+            <select
+              className="flex h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
+              value={overrideForm.status}
+              onChange={(e) => setOverrideForm({ ...overrideForm, status: e.target.value })}
+            >
+              <option value="hadir">Hadir</option>
+              <option value="terlambat">Terlambat</option>
+              <option value="izin">Izin</option>
+              <option value="sakit">Sakit</option>
+              <option value="alpa">Alpa</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Keterangan Tambahan</label>
+            <input
+              type="text"
+              className="flex h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
+              value={overrideForm.note}
+              onChange={(e) => setOverrideForm({ ...overrideForm, note: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Alasan Override <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              className="flex min-h-[80px] w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
+              placeholder="Contoh: Surat keterangan sakit terlampir"
+              value={overrideForm.overrideReason}
+              onChange={(e) => setOverrideForm({ ...overrideForm, overrideReason: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Alasan ini dicatat untuk audit trail.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3 pt-2 border-t border-border">
+            <Button variant="secondary" onClick={() => setIsOverrideModalOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              onClick={handleOverride}
+              disabled={!overrideForm.overrideReason.trim()}
+            >
+              Simpan Override
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
