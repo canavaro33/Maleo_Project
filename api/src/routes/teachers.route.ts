@@ -155,10 +155,15 @@ router.delete("/:id", verifyJWT, checkRole("admin"), async (req: Request, res: R
       });
     }
 
-    // 2. Hapus data (User akun akan tetap ada atau bisa dihapus manual di menu User)
-    await prisma.teacher.delete({ where: { id } });
+    // 2. Hapus data secara transaksional
+    await prisma.$transaction(async (tx) => {
+      // Hapus akun user yang terkait dengan guru ini
+      await tx.user.deleteMany({ where: { teacherId: id } });
+      // Hapus data guru
+      await tx.teacher.delete({ where: { id } });
+    });
     
-    res.json({ success: true, message: "Guru berhasil dihapus" });
+    res.json({ success: true, message: "Guru beserta akun loginnya berhasil dihapus" });
   } catch (error: any) {
     if (error.code === "P2025") { res.status(404).json({ success: false, message: "Guru tidak ditemukan" }); return; }
     console.error("[Teachers] DELETE error:", error);

@@ -23,13 +23,13 @@ const identityGuard = async (req: AuthRequest, res: Response, next: any) => {
 
     if (user.role === "teacher") {
       const teacher = await prisma.teacher.findUnique({ where: { nip: user.nipNis } });
-      if (teacher) (req as any).teacherId = teacher.id;
+      if (!teacher) return res.status(403).json({ success: false, message: "Profil guru tidak ditemukan atau telah dihapus." });
+      (req as any).teacherId = teacher.id;
     } else if (user.role === "student") {
       const student = await prisma.student.findUnique({ where: { nis: user.nipNis } });
-      if (student) {
-        (req as any).studentId = student.id;
-        (req as any).classId = student.classId;
-      }
+      if (!student) return res.status(403).json({ success: false, message: "Profil siswa tidak ditemukan atau telah dihapus." });
+      (req as any).studentId = student.id;
+      (req as any).classId = student.classId;
     }
     next();
   } catch (error) {

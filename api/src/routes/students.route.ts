@@ -184,8 +184,14 @@ router.delete(
   checkRole("admin"),
   async (req: Request, res: Response) => {
     try {
-      await prisma.student.delete({ where: { id: Number(req.params.id) } });
-      res.json({ success: true, message: "Siswa berhasil dihapus" });
+      await prisma.$transaction(async (tx) => {
+        const studentId = Number(req.params.id);
+        // Hapus akun user yang terkait dengan siswa ini agar tidak ada yatim piatu
+        await tx.user.deleteMany({ where: { studentId } });
+        // Hapus data siswa
+        await tx.student.delete({ where: { id: studentId } });
+      });
+      res.json({ success: true, message: "Siswa beserta akun loginnya berhasil dihapus" });
     } catch (error: any) {
       if (error.code === "P2025") {
         res.status(404).json({ success: false, message: "Siswa tidak ditemukan" });
