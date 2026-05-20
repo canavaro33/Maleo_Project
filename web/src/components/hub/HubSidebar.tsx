@@ -32,6 +32,7 @@ const menuItemsTeacher = [
     items: [
       { name: "Materi", href: "/hub/materials", icon: BookOpen },
       { name: "Tugas", href: "/hub/assignments", icon: ClipboardList },
+      { name: "RPS (Rencana)", href: "/hub/rps", icon: ClipboardCheck },
     ],
   },
   {
@@ -70,6 +71,7 @@ const menuItemsStudent = [
     items: [
       { name: "Materi", href: "/hub/materials", icon: BookOpen },
       { name: "Tugas", href: "/hub/assignments", icon: ClipboardList },
+      { name: "RPS (Rencana)", href: "/hub/rps", icon: ClipboardCheck },
     ],
   },
   {
