@@ -93,8 +93,11 @@ export const getModules = async (req: AuthRequest, res: Response) => {
         where: { user: { id: userId } }
       });
       if (student) {
-        where.classId = student.classId;
-        where.isPublished = true;
+        // Siswa bisa melihat modul untuk kelasnya ATAU modul global (classId null)
+        where.OR = [
+          { classId: student.classId, isPublished: true },
+          { classId: null, isPublished: true },
+        ];
       }
     } else if (role === "guardian") {
       const guardian = await prisma.guardian.findFirst({
@@ -116,7 +119,7 @@ export const getModules = async (req: AuthRequest, res: Response) => {
           include: {
             materials: {
               orderBy: { order: "asc" },
-              include: role === "teacher" ? { _count: { select: { access: true } } } : false
+              include: role === "teacher" ? { _count: { select: { access: true } } } : undefined
             }
           },
           orderBy: { sessionNumber: "asc" }

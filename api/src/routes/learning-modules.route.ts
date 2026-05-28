@@ -53,8 +53,16 @@ router.get("/", async (req: any, res: Response) => {
     if (role === "teacher") {
       where.teacherId = req.teacherId;
     } else if (role === "student") {
-      where.isPublished = true;
-      // Tambahan: Pastikan modul ini milik mata pelajaran yang ada di kelas siswa (opsional, tapi bagus untuk keamanan)
+      const studentClassId = req.classId;
+      // Murid bisa lihat: modul kelasnya ATAU modul global (classId null)
+      where = {
+        ...where,
+        isPublished: true,
+        OR: [
+          { classId: studentClassId },
+          { classId: null },
+        ],
+      };
     } else {
       return res.status(403).json({ success: false, message: "Akses ditolak." });
     }

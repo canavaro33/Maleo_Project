@@ -196,12 +196,22 @@ router.get("/assignments", async (req: any, res: Response) => {
         class: {
           select: {
             name: true,
-            _count: { select: { students: true } } // totalStudents
+            _count: { select: { students: true } }
           }
-        }
+        },
+        _count: { select: { submissions: true } }
       },
       orderBy: { dueDate: "asc" }
     });
+
+    // Untuk murid, ambil submission miliknya sekaligus
+    let studentSubmissions: Map<number, any> = new Map();
+    if (role === "student" && req.studentId) {
+      const subs = await prisma.assignmentSubmission.findMany({
+        where: { studentId: req.studentId }
+      });
+      subs.forEach(s => studentSubmissions.set(s.assignmentId, s));
+    }
 
     const result = assignments.map((a) => ({
       id: a.id,
@@ -214,7 +224,13 @@ router.get("/assignments", async (req: any, res: Response) => {
       subject: { id: a.subjectId, name: a.subject.name },
       class: { id: a.classId, name: a.class.name },
       totalStudents: a.class._count.students,
-      submittedCount: 0, // Sprint 3
+      submittedCount: a._count.submissions,
+      // Data submission murid ini (jika role student)
+      studentSubmission: role === "student" ? (
+        studentSubmissions.has(a.id)
+          ? { ...studentSubmissions.get(a.id), submitted: true }
+          : { submitted: false }
+      ) : undefined,
     }));
 
     res.json({ success: true, data: result });
@@ -222,6 +238,7 @@ router.get("/assignments", async (req: any, res: Response) => {
     res.status(500).json({ success: false, message: "Gagal mengambil data tugas." });
   }
 });
+
 
 router.post("/assignments", async (req: any, res: Response) => {
   try {
@@ -326,6 +343,7 @@ router.delete("/assignments/:id", async (req: any, res: Response) => {
 router.get("/assignments/:id", async (req: any, res: Response) => {
   try {
     const assignmentId = Number(req.params.id);
+    const { role } = req.user;
 
     const assignment = await prisma.assignment.findUnique({
       where: { id: assignmentId },
@@ -338,7 +356,8 @@ router.get("/assignments/:id", async (req: any, res: Response) => {
             name: true,
             _count: { select: { students: true } }
           }
-        }
+        },
+        _count: { select: { submissions: true } }
       }
     });
 
@@ -346,18 +365,202 @@ router.get("/assignments/:id", async (req: any, res: Response) => {
       return res.status(404).json({ success: false, message: "Tugas tidak ditemukan." });
     }
 
+    // Jika murid, ambil submission miliknya
+    let studentSubmission = undefined;
+    if (role === "student" && req.studentId) {
+      const sub = await prisma.assignmentSubmission.findUnique({
+        where: { assignmentId_studentId: { assignmentId, studentId: req.studentId } }
+      });
+      studentSubmission = sub ? { ...sub, submitted: true } : { submitted: false };
+    }
+
+    // Jika guru, ambil semua submissions
+    let submissions = undefined;
+    if (role === "teacher") {
+      submissions = await prisma.assignmentSubmission.findMany({
+        where: { assignmentId },
+        include: { student: { select: { name: true, nis: true } } },
+        orderBy: { submittedAt: "desc" }
+      });
+    }
+
     res.json({
       success: true,
       data: {
         ...assignment,
-        fileUrl: assignment.fileUrl,
-        fileType: assignment.fileType,
         totalStudents: assignment.class._count.students,
-        submittedCount: 0, // Sprint 3
+        submittedCount: assignment._count.submissions,
+        studentSubmission,
+        submissions,
       }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Gagal mengambil detail tugas." });
+  }
+});
+
+// ── SUBMISSION MURID ──────────────────────────────────────────
+// POST /api/hub/assignments/:id/submit — kumpulkan tugas (murid)
+router.post("/assignments/:id/submit", uploadMaterial.single("file"), async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ success: false, message: "Hanya siswa yang dapat mengumpulkan tugas." });
+    }
+
+    const assignmentId = Number(req.params.id);
+    const studentId = req.studentId;
+    if (!studentId) {
+      return res.status(400).json({ success: false, message: "Profil siswa tidak ditemukan." });
+    }
+
+    // Pastikan tugas ada dan ditujukan ke kelas siswa ini
+    const assignment = await prisma.assignment.findFirst({
+      where: { id: assignmentId, classId: req.classId }
+    });
+    if (!assignment) {
+      return res.status(404).json({ success: false, message: "Tugas tidak ditemukan atau bukan untuk kelas Anda." });
+    }
+
+    // Cek apakah sudah ada submission sebelumnya
+    const existing = await prisma.assignmentSubmission.findUnique({
+      where: { assignmentId_studentId: { assignmentId, studentId } }
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, message: "Anda sudah mengumpulkan tugas ini. Gunakan endpoint update untuk mengubahnya." });
+    }
+
+    let fileUrl: string | undefined;
+    let fileType: string | undefined;
+    let fileName: string | undefined;
+
+    if (req.file) {
+      fileUrl = `/uploads/materials/${req.file.filename}`;
+      fileType = path.extname(req.file.originalname).replace(".", "").toLowerCase();
+      fileName = req.file.originalname;
+    }
+
+    const { content } = req.body;
+
+    if (!req.file && !content) {
+      return res.status(400).json({ success: false, message: "Harap unggah file atau tulis jawaban teks." });
+    }
+
+    const submission = await prisma.assignmentSubmission.create({
+      data: {
+        assignmentId,
+        studentId,
+        fileUrl,
+        fileType,
+        fileName,
+        content: content || null,
+        submittedAt: new Date(),
+      }
+    });
+
+    res.status(201).json({ success: true, message: "Tugas berhasil dikumpulkan!", data: submission });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengumpulkan tugas." });
+  }
+});
+
+// PUT /api/hub/assignments/submit/:submissionId — update submission (murid)
+router.put("/assignments/submit/:submissionId", uploadMaterial.single("file"), async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ success: false, message: "Hanya siswa yang dapat mengubah tugas." });
+    }
+
+    const submissionId = Number(req.params.submissionId);
+    const studentId = req.studentId;
+
+    const existing = await prisma.assignmentSubmission.findFirst({
+      where: { id: submissionId, studentId }
+    });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Submission tidak ditemukan." });
+    }
+
+    let fileUrl = existing.fileUrl ?? undefined;
+    let fileType = existing.fileType ?? undefined;
+    let fileName = existing.fileName ?? undefined;
+
+    if (req.file) {
+      fileUrl = `/uploads/materials/${req.file.filename}`;
+      fileType = path.extname(req.file.originalname).replace(".", "").toLowerCase();
+      fileName = req.file.originalname;
+    }
+
+    const { content } = req.body;
+
+    const updated = await prisma.assignmentSubmission.update({
+      where: { id: submissionId },
+      data: {
+        fileUrl,
+        fileType,
+        fileName,
+        content: content ?? existing.content,
+        submittedAt: new Date(),
+      }
+    });
+
+    res.json({ success: true, message: "Tugas berhasil diperbarui.", data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal memperbarui tugas." });
+  }
+});
+
+// DELETE /api/hub/assignments/submit/:submissionId — hapus submission (murid)
+router.delete("/assignments/submit/:submissionId", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ success: false, message: "Hanya siswa yang dapat menghapus submission." });
+    }
+
+    const submissionId = Number(req.params.submissionId);
+    const studentId = req.studentId;
+
+    const existing = await prisma.assignmentSubmission.findFirst({
+      where: { id: submissionId, studentId }
+    });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Submission tidak ditemukan." });
+    }
+
+    await prisma.assignmentSubmission.delete({ where: { id: submissionId } });
+    res.json({ success: true, message: "Submission berhasil dihapus." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal menghapus submission." });
+  }
+});
+
+// GET /api/hub/assignments/:id/submissions — guru lihat semua submission suatu tugas
+router.get("/assignments/:id/submissions", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "teacher") {
+      return res.status(403).json({ success: false, message: "Hanya guru yang dapat melihat semua submission." });
+    }
+
+    const assignmentId = Number(req.params.id);
+
+    // Pastikan tugas milik guru ini
+    const assignment = await prisma.assignment.findFirst({
+      where: { id: assignmentId, teacherId: req.teacherId }
+    });
+    if (!assignment) {
+      return res.status(404).json({ success: false, message: "Tugas tidak ditemukan." });
+    }
+
+    const submissions = await prisma.assignmentSubmission.findMany({
+      where: { assignmentId },
+      include: {
+        student: { select: { name: true, nis: true } }
+      },
+      orderBy: { submittedAt: "desc" }
+    });
+
+    res.json({ success: true, data: submissions });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengambil data submission." });
   }
 });
 
@@ -566,10 +769,49 @@ router.delete("/grades/:id", async (req: any, res: Response) => {
       return res.status(404).json({ success: false, message: "Nilai tidak ditemukan." });
     }
 
+    if (existing.isLocked) {
+      return res.status(403).json({ success: false, message: "Nilai sudah dikunci. Hubungi admin untuk membuka kunci." });
+    }
+
     await prisma.grade.delete({ where: { id: gradeId } });
     res.json({ success: true, message: "Nilai berhasil dihapus." });
   } catch (error) {
     res.status(500).json({ success: false, message: "Gagal menghapus nilai." });
+  }
+});
+
+// POST /api/hub/grades/:id/lock → lock nilai (guru only)
+router.post("/grades/:id/lock", async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== "teacher") {
+      return res.status(403).json({ success: false, message: "Akses ditolak." });
+    }
+
+    const gradeId = Number(req.params.id);
+    const existing = await prisma.grade.findFirst({
+      where: { id: gradeId, subject: { teacherId: req.teacherId } }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Nilai tidak ditemukan." });
+    }
+
+    if (existing.isLocked) {
+      return res.status(400).json({ success: false, message: "Nilai sudah terkunci." });
+    }
+
+    const updated = await prisma.grade.update({
+      where: { id: gradeId },
+      data: {
+        isLocked: true,
+        lockedAt: new Date(),
+        lockedBy: req.user.id
+      }
+    });
+
+    res.json({ success: true, message: "Nilai berhasil dikunci.", data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Gagal mengunci nilai." });
   }
 });
 

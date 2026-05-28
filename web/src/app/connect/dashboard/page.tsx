@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/Card";
 import { Users, Award, ClipboardCheck, Megaphone } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { apiService } from "@/services/apiService";

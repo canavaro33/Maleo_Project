@@ -12,7 +12,7 @@ const router = Router();
 // ──────────────────────────────────────────────
 
 const gradeSchema = z.object({
-  type: z.enum(["Tugas", "UTS", "UAS", "Kuis"]),
+  type: z.enum(["Tugas", "PSTS", "PSAS", "Kuis"]),
   score: z.number().min(0, "Nilai tidak boleh negatif"),
   maxScore: z.number().min(0, "Nilai maksimal tidak boleh negatif"),
   date: z.string().min(1, "Tanggal wajib diisi"),
@@ -60,6 +60,8 @@ router.get("/", verifyJWT, async (req: AuthRequest, res: Response) => {
       score: g.score,
       maxScore: g.maxScore,
       date: g.date.toISOString().split("T")[0],
+      isLocked: g.isLocked,
+      lockedAt: g.lockedAt,
     }));
 
     res.json({ success: true, data: result, total: result.length });
@@ -176,6 +178,114 @@ router.delete(
       }
       console.error("[Grades] DELETE error:", error);
       res.status(500).json({ success: false, message: "Terjadi kesalahan server" });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────
+// POST /api/grades/:id/lock
+// Akses: Guru (teacher) atau admin
+// ──────────────────────────────────────────────
+router.post(
+  "/:id/lock",
+  verifyJWT,
+  checkRole("admin", "teacher"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const grade = await prisma.grade.findUnique({
+        where: { id: Number(req.params.id) }
+      });
+
+      if (!grade) {
+        res.status(404).json({
+          success: false,
+          message: "Data nilai tidak ditemukan"
+        });
+        return;
+      }
+
+      if (grade.isLocked) {
+        res.status(400).json({
+          success: false,
+          message: "Nilai sudah terkunci"
+        });
+        return;
+      }
+
+      const updated = await prisma.grade.update({
+        where: { id: Number(req.params.id) },
+        data: {
+          isLocked: true,
+          lockedAt: new Date(),
+          lockedBy: req.user?.id,
+        }
+      });
+
+      res.json({
+        success: true,
+        message: "Nilai berhasil dikunci",
+        data: updated
+      });
+    } catch (error) {
+      console.error("[Grades] LOCK error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Terjadi kesalahan server"
+      });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────
+// POST /api/grades/:id/unlock
+// Akses: Hanya Admin
+// ──────────────────────────────────────────────
+router.post(
+  "/:id/unlock",
+  verifyJWT,
+  checkRole("admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const grade = await prisma.grade.findUnique({
+        where: { id: Number(req.params.id) }
+      });
+
+      if (!grade) {
+        res.status(404).json({
+          success: false,
+          message: "Data nilai tidak ditemukan"
+        });
+        return;
+      }
+
+      if (!grade.isLocked) {
+        res.status(400).json({
+          success: false,
+          message: "Nilai tidak dalam kondisi terkunci"
+        });
+        return;
+      }
+
+      const updated = await prisma.grade.update({
+        where: { id: Number(req.params.id) },
+        data: {
+          isLocked: false,
+          unlockedAt: new Date(),
+          unlockedBy: req.user?.id,
+        }
+      });
+
+      res.json({
+        success: true,
+        message: "Nilai berhasil di-unlock",
+        data: updated
+      });
+    } catch (error) {
+      console.error("[Grades] UNLOCK error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Terjadi kesalahan server"
+      });
     }
   }
 );

@@ -19,10 +19,11 @@ export interface Student {
   status: "active" | "inactive";
   guardianId?: number;
   guardianName?: string;
+  userCode?: string;
 }
 
 export interface Teacher {
-  userCode: string;
+  userCode?: string;
   id: number;
   nip: string;
   name: string;
@@ -30,6 +31,7 @@ export interface Teacher {
   email: string;
   phone: string;
   subject: string;
+  subjects?: any[];
   status: "active" | "inactive";
 }
 

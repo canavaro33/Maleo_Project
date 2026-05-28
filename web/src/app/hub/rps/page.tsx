@@ -78,7 +78,12 @@ export default function RpsPage() {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        if (parsed.role !== "teacher") {
+          window.location.href = "/hub/dashboard";
+          return;
+        }
+        setUser(parsed);
       } catch (e) {
         console.error("Failed to parse user data");
       }

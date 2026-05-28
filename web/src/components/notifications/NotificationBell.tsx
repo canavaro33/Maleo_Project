@@ -8,6 +8,10 @@ import api from "@/lib/axios";
 
 interface Announcement {
   id: number;
+  title: string;
+  content: string;
+  priority: "normal" | "important" | "urgent";
+  createdAt: string;
 }
 
 export function NotificationBell() {

@@ -27,7 +27,7 @@ const menuItems = [
     label: "Anak Saya",
     items: [
       { name: "Data Anak", href: "/connect/children", icon: Users },
-      { name: "Nilai", href: "/connect/scores", icon: Award },
+      { name: "Nilai", href: "/connect/grades", icon: Award },
       { name: "Kehadiran", href: "/connect/attendances", icon: ClipboardCheck },
       { name: "Tugas", href: "/connect/tasks", icon: ClipboardList },
     ],

@@ -47,15 +47,20 @@ export default function HubDashboard() {
     fetchAnnouncements();
   }, []);
 
+  const handlePasswordChange = async (oldPass: string, newPass: string) => {
+    await apiService.create("/auth/change-password", { oldPassword: oldPass, newPassword: newPass });
+  };
+
   // Early returns must come AFTER all hook calls
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-muted-foreground">
         <ForceChangePasswordModal 
-      isOpen={showModal} 
-      onClose={() => {}} 
-      onSuccess={() => setShowModal(false)} 
-    />
+          isOpen={showModal} 
+          onClose={() => {}} 
+          onSuccess={() => setShowModal(false)} 
+          onSubmit={handlePasswordChange}
+        />
         <Loader2 className="animate-spin mb-4" size={40} />
         <p className="animate-pulse">Menyiapkan dashboard Anda...</p>
       </div>

@@ -58,7 +58,7 @@ router.get("/recent", verifyJWT, async (req: Request, res: Response) => {
     const announcements = await prisma.announcement.findMany({
       where: {
         isPublished: true,
-        target: { in: targets }
+        target: { in: targets as any }
       },
       orderBy: { createdAt: "desc" },
       take: 5,

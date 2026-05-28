@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
     '/dashboard', '/teachers', '/students', '/subjects',
     '/schedules', '/grades', '/attendances', '/announcements',
     '/academic-years', '/guardians', '/scores',
-    '/principal', '/principal-dashboard',
+    '/principal', '/principal-dashboard', '/teacher-attendances',
   ];
 
   const isAdminPath = adminPaths.some(p => pathname.startsWith(p));
@@ -53,27 +53,23 @@ export function middleware(request: NextRequest) {
     }
 
     // Halaman yang HANYA admin yang boleh akses (kepala_sekolah tidak boleh)
-    const adminOnlyWritePaths = [
+    const adminOnlyPaths = [
       '/teachers',
       '/students',
       '/subjects',
       '/schedules',
       '/academic-years',
-      '/guardians',
       '/principal',   // /principal CRUD — bukan /principal-dashboard
       '/scores',
       '/grades',
-      '/attendances',
-      '/announcements',
     ];
 
     // Redirect kepala_sekolah jika mencoba akses halaman admin-only
-    // (kecuali /principal-dashboard yang memang miliknya)
     if (role === 'kepala_sekolah') {
-      const isAdminWrite = adminOnlyWritePaths.some(
+      const isAdminOnly = adminOnlyPaths.some(
         p => pathname.startsWith(p) && !pathname.startsWith('/principal-dashboard')
       );
-      if (isAdminWrite) {
+      if (isAdminOnly) {
         return NextResponse.redirect(new URL('/principal-dashboard', request.url));
       }
     }
@@ -82,6 +78,9 @@ export function middleware(request: NextRequest) {
     if (isHubPath) {
       if (role === 'admin' || role === 'kepala_sekolah') {
         return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+      if (role === 'guardian') {
+        return NextResponse.redirect(new URL('/connect/dashboard', request.url));
       }
     }
 
@@ -112,6 +111,7 @@ export const config = {
     '/academic-years/:path*',
     '/guardians/:path*',
     '/scores/:path*',
+    '/teacher-attendances/:path*',
     '/hub/:path*',
     '/connect/:path*',
     '/settings/:path*',

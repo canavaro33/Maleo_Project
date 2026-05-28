@@ -20,6 +20,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 
+// Menu khusus Guru — RPS & absensi siswa, konsultasi wali
 const menuItemsTeacher = [
   {
     label: "Menu Utama",
@@ -30,15 +31,14 @@ const menuItemsTeacher = [
   {
     label: "Pembelajaran",
     items: [
-      { name: "Materi", href: "/hub/materials", icon: BookOpen },
+      { name: "RPS & Modul", href: "/hub/rps", icon: BookOpen },
       { name: "Tugas", href: "/hub/assignments", icon: ClipboardList },
-      { name: "RPS (Rencana)", href: "/hub/rps", icon: ClipboardCheck },
     ],
   },
   {
     label: "Akademik",
     items: [
-      { name: "Nilai", href: "/hub/grades", icon: Award },
+      { name: "Nilai Siswa", href: "/hub/grades", icon: Award },
       { name: "Input Absensi", href: "/hub/absensi/input", icon: PlusCircle },
       { name: "Jadwal", href: "/hub/schedules", icon: Clock },
     ],
@@ -59,6 +59,7 @@ const menuItemsTeacher = [
   },
 ];
 
+// Menu khusus Siswa — RPS DIHAPUS (internal guru only)
 const menuItemsStudent = [
   {
     label: "Menu Utama",
@@ -71,7 +72,6 @@ const menuItemsStudent = [
     items: [
       { name: "Materi", href: "/hub/materials", icon: BookOpen },
       { name: "Tugas", href: "/hub/assignments", icon: ClipboardList },
-      { name: "RPS (Rencana)", href: "/hub/rps", icon: ClipboardCheck },
     ],
   },
   {
@@ -87,51 +87,6 @@ const menuItemsStudent = [
     items: [
       { name: "Pengumuman", href: "/hub/announcements", icon: Megaphone },
       { name: "Profil Saya", href: "/settings/profile", icon: UserCircle },
-    ],
-  },
-];
-
-const menuItemsGuardian = [
-  {
-    label: "Menu Utama",
-    items: [
-      { name: "Dashboard", href: "/hub/dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: "Pembelajaran",
-    items: [
-      { name: "Materi Anak", href: "/hub/materials", icon: BookOpen },
-    ],
-  },
-  {
-    label: "Akademik",
-    items: [
-      { name: "Nilai Anak", href: "/hub/grades", icon: Award },
-      { name: "Kehadiran Anak", href: "/hub/attendance", icon: ClipboardCheck },
-      { name: "Jadwal Anak", href: "/hub/schedules", icon: Clock },
-    ],
-  },
-];
-
-const menuItemsPrincipal = [
-  {
-    label: "Menu Utama",
-    items: [
-      { name: "Dashboard", href: "/hub/dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: "Akademik",
-    items: [
-      { name: "Laporan Nilai", href: "/hub/grades", icon: Award },
-      { name: "Laporan Kehadiran", href: "/hub/attendance", icon: ClipboardCheck },
-    ],
-  },
-  {
-    label: "Informasi",
-    items: [
-      { name: "Pengumuman", href: "/hub/announcements", icon: Megaphone },
     ],
   },
 ];
@@ -153,16 +108,13 @@ export function HubSidebar() {
     }
   }, []);
 
+  // HubSidebar hanya untuk teacher dan student
+  // Guardian → /connect, Kepala Sekolah & Admin → /principal-dashboard atau /dashboard
   const getMenuItems = () => {
     switch (userRole) {
       case "teacher":
         return menuItemsTeacher;
       case "student":
-        return menuItemsStudent;
-      case "guardian":
-        return menuItemsGuardian;
-      case "kepala_sekolah":
-        return menuItemsPrincipal;
       default:
         return menuItemsStudent;
     }

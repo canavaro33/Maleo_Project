@@ -5,9 +5,9 @@ import {
   Users, GraduationCap, Award, Activity, CalendarDays,
   Loader2, FileDown, ChevronRight, CheckCircle2, AlertCircle, BookOpen, UserCheck
 } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { apiService } from "@/services/apiService";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,

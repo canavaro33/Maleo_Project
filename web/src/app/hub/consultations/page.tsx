@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -63,7 +63,7 @@ export default function HubConsultationsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "unread": return <Badge variant="danger">Pesan Baru</Badge>;
-      case "read": return <Badge variant="secondary">Sudah Dibaca</Badge>;
+      case "read": return <Badge variant="neutral">Sudah Dibaca</Badge>;
       case "replied": return <Badge variant="success">Dibalas</Badge>;
       default: return null;
     }

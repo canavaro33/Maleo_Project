@@ -11,7 +11,13 @@ import {
   TrendingUp,
   Target,
   BarChart3,
-  Filter
+  Filter,
+  Lock,
+  Unlock,
+  CheckCircle2,
+  Calculator,
+  Settings,
+  Pencil
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -23,9 +29,9 @@ import { formatDate, cn } from "@/lib/utils";
 
 const GRADE_TYPES = [
   { value: "Tugas", label: "Tugas" },
+  { value: "PSTS", label: "PSTS — Sumatif Tengah Semester" },
+  { value: "PSAS", label: "PSAS — Sumatif Akhir Semester" },
   { value: "Kuis", label: "Kuis" },
-  { value: "UTS", label: "UTS" },
-  { value: "UAS", label: "UAS" },
 ];
 
 const getGradeBadge = (score: number, max: number = 100) => {
@@ -33,6 +39,23 @@ const getGradeBadge = (score: number, max: number = 100) => {
   if (pct >= 80) return { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", label: "Baik" };
   if (pct >= 60) return { cls: "bg-amber-100 text-amber-700 border-amber-200", label: "Cukup" };
   return { cls: "bg-rose-100 text-rose-700 border-rose-200", label: "Kurang" };
+};
+
+const getScoreColor = (score: number, max: number = 100) => {
+  const pct = (score / max) * 100;
+  if (pct >= 80) return "text-emerald-600";
+  if (pct >= 60) return "text-amber-600";
+  return "text-rose-600";
+};
+
+const getTypeBadgeColor = (type: string) => {
+  switch (type) {
+    case "Tugas": return "bg-blue-100 text-blue-700";
+    case "PSTS": return "bg-violet-100 text-violet-700";
+    case "PSAS": return "bg-fuchsia-100 text-fuchsia-700";
+    case "Kuis": return "bg-cyan-100 text-cyan-700";
+    default: return "bg-muted text-muted-foreground";
+  }
 };
 
 export default function GradesPage() {
@@ -53,6 +76,8 @@ export default function GradesPage() {
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingGrade, setEditingGrade] = useState<any>(null);
+  
   const [form, setForm] = useState({
     studentId: "",
     subjectId: "",
@@ -61,6 +86,14 @@ export default function GradesPage() {
     maxScore: "100",
     date: new Date().toISOString().split("T")[0],
   });
+
+  // State Baru: Locking & Bobot
+  const [lockedGradeIds, setLockedGradeIds] = useState<Set<number>>(new Set());
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [gradeConfig, setGradeConfig] = useState<any>(null);
+  const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
+  const [weightComponents, setWeightComponents] = useState<any[]>([]);
+  const [gradeSummary, setGradeSummary] = useState<any>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -81,6 +114,16 @@ export default function GradesPage() {
     }
     fetchGrades();
   }, [isTeacher]);
+
+  useEffect(() => {
+    if (isTeacher && filterClass && filterSubject) {
+      fetchGradeConfig();
+      fetchGradeSummary();
+    } else {
+      setGradeConfig(null);
+      setGradeSummary(null);
+    }
+  }, [filterClass, filterSubject]);
 
   const fetchStudentSubjects = async () => {
     try {
@@ -116,13 +159,68 @@ export default function GradesPage() {
       if (params?.subjectId) query.subjectId = params.subjectId;
       if (params?.classId) query.classId = params.classId;
       if (params?.type) query.type = params.type;
+      else {
+        if (filterSubject) query.subjectId = filterSubject;
+        if (filterClass) query.classId = filterClass;
+        if (filterType) query.type = filterType;
+      }
 
       const res = await apiService.getAll("/hub/grades", query);
-      setGrades(res.data || []);
+      const data = res.data || [];
+      setGrades(data);
+      
+      const locked = new Set<number>();
+      data.forEach((g: any) => {
+        if (g.isLocked) locked.add(g.id);
+      });
+      setLockedGradeIds(locked);
     } catch (e) {
       setError("Gagal memuat data nilai.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchGradeConfig = async () => {
+    if (!filterClass || !filterSubject) return;
+
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const classObj = classes.find((c: any) => String(c.id) === filterClass);
+      const subjectObj = subjects.find((s: any) => String(s.id) === filterSubject);
+
+      if (!classObj || !subjectObj || !user.teacherId) return;
+
+      const res = await apiService.getAll("/grade-config", {
+        teacherId: user.teacherId,
+        subjectId: subjectObj.id,
+        classId: classObj.id,
+      });
+      
+      setGradeConfig(res.data);
+      setWeightComponents(res.data.components || []);
+    } catch (err) {
+      console.error("Gagal fetch grade config", err);
+    }
+  };
+
+  const fetchGradeSummary = async () => {
+    if (!filterClass || !filterSubject) return;
+
+    try {
+      const classObj = classes.find((c: any) => String(c.id) === filterClass);
+      const subjectObj = subjects.find((s: any) => String(s.id) === filterSubject);
+
+      if (!classObj || !subjectObj) return;
+
+      const res = await apiService.getAll("/grade-config/summary", {
+        subjectId: subjectObj.id,
+        classId: classObj.id,
+      });
+      
+      setGradeSummary(res.data);
+    } catch (err) {
+      console.error("Gagal fetch grade summary", err);
     }
   };
 
@@ -134,25 +232,93 @@ export default function GradesPage() {
     });
   };
 
-  const handleSaveGrade = async () => {
+  const openAdd = () => {
+    setEditingGrade(null);
+    setForm({ studentId: "", subjectId: "", type: "", score: "", maxScore: "100", date: new Date().toISOString().split("T")[0] });
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (grade: any) => {
+    if (lockedGradeIds.has(grade.id) || grade.isLocked) {
+      alert("Nilai yang sudah dikunci tidak bisa diedit.");
+      return;
+    }
+    setEditingGrade(grade);
+    if (isTeacher) {
+      setFilterClass(String(grade.student.class?.id || filterClass));
+      fetchStudentsForClass(String(grade.student.class?.id || filterClass));
+    }
+    setForm({
+      studentId: String(grade.studentId),
+      subjectId: String(grade.subjectId),
+      type: grade.type,
+      score: String(grade.score),
+      maxScore: String(grade.maxScore || "100"),
+      date: new Date(grade.date).toISOString().split("T")[0],
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveGradeWithConfirm = () => {
     if (!form.studentId || !form.subjectId || !form.type || !form.score) {
       alert("Harap lengkapi semua field yang diperlukan.");
       return;
     }
+    if (Number(form.score) > Number(form.maxScore)) {
+      alert("Nilai tidak boleh melebihi nilai maksimal.");
+      return;
+    }
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmSave = async () => {
+    setIsConfirmOpen(false);
     setIsSubmitting(true);
+    
     try {
-      await apiService.create("/hub/grades", {
+      let savedGrade;
+      const payload = {
         studentId: Number(form.studentId),
         subjectId: Number(form.subjectId),
         type: form.type,
         score: Number(form.score),
         maxScore: Number(form.maxScore) || 100,
         date: form.date,
-      });
-      setSuccessMsg("Nilai berhasil disimpan.");
-      setIsModalOpen(false);
-      setForm({ studentId: "", subjectId: "", type: "", score: "", maxScore: "100", date: new Date().toISOString().split("T")[0] });
+      };
+
+      if (editingGrade) {
+        if (lockedGradeIds.has(editingGrade.id)) {
+          alert("Nilai yang sudah dikunci tidak bisa diedit.");
+          setIsSubmitting(false);
+          return;
+        }
+        // Endpoint put yang digunakan di grades route, asumsi frontend pake PUT /grades/:id
+        // Karena route di hub cuma ada POST & DELETE, kita ganti ke route utama jika API update ada di sana
+        // Wait, route /api/hub/grades tidak punya PUT. Tapi /api/grades punya PUT.
+        const res = await apiService.update("/grades", editingGrade.id, payload);
+        savedGrade = res.data;
+        setSuccessMsg("Nilai berhasil diperbarui.");
+      } else {
+        const res = await apiService.create("/hub/grades", payload);
+        savedGrade = res.data;
+        setSuccessMsg("Nilai berhasil disimpan.");
+      }
+
+      // Auto-lock setelah simpan
+      if (savedGrade?.id) {
+        await apiService.create(`/hub/grades/${savedGrade.id}/lock`, {});
+        setLockedGradeIds(prev => {
+          const newSet = new Set(prev);
+          newSet.add(savedGrade.id);
+          return newSet;
+        });
+      }
+
       fetchGrades();
+      if (filterClass && filterSubject) {
+        fetchGradeSummary();
+      }
+      setIsModalOpen(false);
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (e: any) {
       alert(e.response?.data?.message || "Gagal menyimpan nilai.");
@@ -162,14 +328,47 @@ export default function GradesPage() {
   };
 
   const handleDeleteGrade = async (id: number) => {
+    if (lockedGradeIds.has(id)) {
+      alert("Nilai sudah dikunci, tidak bisa dihapus.");
+      return;
+    }
     if (!confirm("Hapus nilai ini?")) return;
     try {
       await apiService.remove("/hub/grades", id);
       setSuccessMsg("Nilai berhasil dihapus.");
       fetchGrades();
+      if (filterClass && filterSubject) {
+        fetchGradeSummary();
+      }
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (e: any) {
       alert(e.response?.data?.message || "Gagal menghapus nilai.");
+    }
+  };
+
+  const handleSaveWeightConfig = async () => {
+    if (!gradeConfig) return;
+
+    const total = weightComponents.reduce(
+      (sum: number, c: any) => sum + Number(c.weight), 0
+    );
+
+    if (Math.round(total) !== 100) {
+      alert(`Total bobot harus 100%. Saat ini: ${total.toFixed(1)}%`);
+      return;
+    }
+
+    try {
+      await apiService.update("/grade-config", gradeConfig.id, {
+        components: weightComponents
+      });
+      setSuccessMsg("Konfigurasi bobot berhasil disimpan.");
+      setIsWeightModalOpen(false);
+      fetchGradeConfig();
+      fetchGradeSummary();
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Gagal menyimpan konfigurasi.");
     }
   };
 
@@ -190,16 +389,28 @@ export default function GradesPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isTeacher
-              ? "Input dan kelola nilai tugas, UTS, serta UAS siswa"
+              ? "Input dan kelola nilai tugas, PSTS, serta PSAS siswa"
               : "Rekap nilai semua mata pelajaran Anda"}
           </p>
         </div>
-        {isTeacher && (
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus size={16} />
-            Input Nilai Baru
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {isTeacher && filterClass && filterSubject && (
+            <Button
+              variant="secondary"
+              onClick={() => setIsWeightModalOpen(true)}
+              className="gap-2 border-violet-200 text-violet-700 hover:bg-violet-50"
+            >
+              <Settings size={16} />
+              Setup Bobot
+            </Button>
+          )}
+          {isTeacher && (
+            <Button onClick={openAdd}>
+              <Plus size={16} />
+              Input Nilai Baru
+            </Button>
+          )}
+        </div>
       </div>
 
       {successMsg && (
@@ -250,6 +461,22 @@ export default function GradesPage() {
         </div>
       )}
 
+      {/* Formula bobot */}
+      {isTeacher && gradeConfig && (
+        <div className="flex items-center gap-2 p-3 bg-violet-50 border border-violet-100 rounded-lg">
+          <Calculator size={16} className="text-violet-600 shrink-0" />
+          <p className="text-sm text-violet-700">
+            <span className="font-medium">Formula Nilai Akhir: </span>
+            {gradeConfig.formula}
+          </p>
+          {!gradeConfig.isValid && (
+            <span className="ml-2 bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold">
+              Bobot belum valid!
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Filters */}
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -279,7 +506,7 @@ export default function GradesPage() {
               />
             </div>
           )}
-          <div className="w-36">
+          <div className="w-44">
             <Select
               placeholder="Semua Tipe"
               options={GRADE_TYPES}
@@ -291,7 +518,7 @@ export default function GradesPage() {
           {(filterSubject || filterClass || filterType) && (
             <Button size="sm" variant="secondary" onClick={() => {
               setFilterSubject(""); setFilterClass(""); setFilterType("");
-              fetchGrades();
+              setTimeout(fetchGrades, 0);
             }}>
               Reset
             </Button>
@@ -303,7 +530,7 @@ export default function GradesPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50">
+            <thead className="bg-muted/50 border-b border-border">
               <tr>
                 {isTeacher && (
                   <>
@@ -332,8 +559,10 @@ export default function GradesPage() {
                 grades.map(grade => {
                   const pct = Math.round((grade.score / (grade.maxScore || 100)) * 100);
                   const badge = getGradeBadge(grade.score, grade.maxScore || 100);
+                  const isLocked = lockedGradeIds.has(grade.id) || grade.isLocked;
+                  
                   return (
-                    <tr key={grade.id} className="border-t border-border hover:bg-muted/20 transition-colors">
+                    <tr key={grade.id} className={cn("border-b border-border/50 transition-colors", isLocked ? "bg-emerald-50/20 hover:bg-emerald-50/40" : "hover:bg-muted/20")}>
                       {isTeacher && (
                         <>
                           <td className="py-3 px-4 font-medium">{grade.student?.name || "-"}</td>
@@ -352,12 +581,12 @@ export default function GradesPage() {
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-[11px] font-bold uppercase tracking-wider bg-muted px-2 py-0.5 rounded">
+                        <span className={cn("text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded", getTypeBadgeColor(grade.type))}>
                           {grade.type}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="font-bold text-base">{grade.score}</span>
+                        <span className={cn("font-bold text-base", getScoreColor(grade.score, grade.maxScore))}>{grade.score}</span>
                         <span className="text-muted-foreground text-xs">/{grade.maxScore || 100}</span>
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -368,12 +597,26 @@ export default function GradesPage() {
                       <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(grade.date)}</td>
                       {isTeacher && (
                         <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => handleDeleteGrade(grade.id)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          {isLocked ? (
+                            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full text-xs font-semibold">
+                              <Lock size={11} /> Terkunci
+                            </span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => openEdit(grade)}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteGrade(grade.id)}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -392,7 +635,7 @@ export default function GradesPage() {
                         : "Nilai akan muncul di sini setelah guru menginput penilaian."}
                     </p>
                     {isTeacher && (
-                      <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
+                      <Button className="mt-4" onClick={openAdd}>
                         <Plus size={16} /> Input Nilai Pertama
                       </Button>
                     )}
@@ -404,9 +647,71 @@ export default function GradesPage() {
         </div>
       </Card>
 
+      {/* Nilai Akhir Summary */}
+      {isTeacher && gradeSummary && (
+        <Card className="mt-4 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-foreground text-lg">
+              Rekap Nilai Akhir Otomatis
+            </h3>
+            <span className="text-xs bg-violet-100 text-violet-700 px-2 py-1 rounded-full font-medium">
+              Formula: {gradeSummary.formula}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-4 text-muted-foreground font-semibold">Nama Siswa</th>
+                  {gradeSummary.config?.components
+                    .filter((c: any) => c.weight > 0)
+                    .map((c: any) => (
+                      <th key={c.name} className="text-center py-3 px-4 text-muted-foreground font-semibold">
+                        {c.name}
+                        <span className="block text-[10px] font-normal mt-0.5">({c.weight}%)</span>
+                      </th>
+                    ))}
+                  <th className="text-center py-3 px-4 text-foreground font-bold">Nilai Akhir</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gradeSummary.summary?.length > 0 ? gradeSummary.summary.map((s: any) => (
+                  <tr key={s.studentId} className="border-b border-border/50 hover:bg-muted/10 transition-colors">
+                    <td className="py-3 px-4 font-medium">{s.studentName}</td>
+                    {gradeSummary.config?.components
+                      .filter((c: any) => c.weight > 0)
+                      .map((c: any) => (
+                        <td key={c.name} className="py-3 px-4 text-center text-muted-foreground">
+                          {s.scoreByType[c.name]?.toFixed(1) || "-"}
+                        </td>
+                      ))}
+                    <td className="py-3 px-4 text-center">
+                      <span className={cn("font-bold text-base", getScoreColor(s.finalScore, 100))}>
+                        {s.finalScore}
+                      </span>
+                      <span className={cn(
+                        "ml-2 text-xs font-bold px-2 py-1 rounded",
+                        s.finalScore >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                        s.finalScore >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                      )}>
+                        {s.gradeLetter}
+                      </span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={10} className="py-10 text-center text-muted-foreground">Belum ada siswa di kelas ini</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       {/* Modal Input Nilai */}
       {isTeacher && (
-        <Modal isOpen={isModalOpen} onClose={() => !isSubmitting && setIsModalOpen(false)} title="Input Nilai Siswa">
+        <Modal isOpen={isModalOpen} onClose={() => !isSubmitting && setIsModalOpen(false)} title={editingGrade ? "Edit Nilai Siswa" : "Input Nilai Siswa"}>
           <div className="p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <Select
@@ -418,6 +723,7 @@ export default function GradesPage() {
                   setFilterClass(e.target.value);
                   fetchStudentsForClass(e.target.value);
                 }}
+                disabled={!!editingGrade}
               />
               <Select
                 label="Mata Pelajaran"
@@ -425,6 +731,7 @@ export default function GradesPage() {
                 options={subjects.map(s => ({ value: String(s.id), label: s.name }))}
                 value={form.subjectId}
                 onChange={e => setForm({ ...form, subjectId: e.target.value })}
+                disabled={!!editingGrade}
               />
             </div>
             <Select
@@ -433,6 +740,7 @@ export default function GradesPage() {
               options={students.map(s => ({ value: String(s.id), label: `${s.name} (${s.nis})` }))}
               value={form.studentId}
               onChange={e => setForm({ ...form, studentId: e.target.value })}
+              disabled={!!editingGrade}
             />
             <div className="grid grid-cols-2 gap-4">
               <Select
@@ -467,13 +775,138 @@ export default function GradesPage() {
                 onChange={e => setForm({ ...form, maxScore: e.target.value })}
               />
             </div>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex justify-end gap-3 pt-2 border-t mt-4">
               <Button variant="secondary" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Batal</Button>
               <Button
-                onClick={handleSaveGrade}
+                onClick={handleSaveGradeWithConfirm}
                 disabled={isSubmitting || !form.studentId || !form.subjectId || !form.type || !form.score}
               >
                 {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : "Simpan Nilai"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Konfirmasi Ganda */}
+      {isConfirmOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 animate-in fade-in duration-200">
+          <div className="bg-card rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-border">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-amber-100">
+                <Lock size={20} className="text-amber-600" />
+              </div>
+              <h3 className="font-bold text-lg">Konfirmasi Kunci Nilai</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Apakah Anda yakin ingin mengunci nilai PSTS & PSAS Siswa ini?
+            </p>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-6">
+              <p className="text-xs text-amber-700 leading-relaxed">
+                ⚠️ Nilai yang sudah dikunci akan langsung terkirim ke portal Wali Murid
+                dan <strong>tidak dapat diubah kembali</strong> secara sembarangan oleh Guru.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setIsConfirmOpen(false)} disabled={isSubmitting}>
+                Batal
+              </Button>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleConfirmSave} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="animate-spin" size={16}/> : <><CheckCircle2 size={16} className="mr-1.5"/> Ya, Kunci Nilai</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Setup Bobot */}
+      {isTeacher && (
+        <Modal
+          isOpen={isWeightModalOpen}
+          onClose={() => setIsWeightModalOpen(false)}
+          title="Setup Bobot Penilaian"
+          // size="lg" is not standard in this generic modal component, we handle inside
+        >
+          <div className="p-6 space-y-4 max-w-lg mx-auto w-[500px]">
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+              <p className="text-sm text-blue-700">
+                Total bobot semua komponen harus = 100%.
+                Komponen dengan bobot 0 tidak dihitung dalam nilai akhir.
+              </p>
+            </div>
+
+            <div className="p-3 bg-violet-50 border border-violet-100 rounded-lg">
+              <p className="text-sm text-violet-700 font-medium">Formula saat ini:</p>
+              <p className="text-sm text-violet-600 mt-1">
+                {weightComponents
+                  .filter((c: any) => Number(c.weight) > 0)
+                  .map((c: any) => `${c.name} × ${c.weight}%`)
+                  .join(" + ") || "Belum ada komponen aktif"}
+              </p>
+              <p className={cn(
+                "text-sm font-bold mt-2",
+                Math.round(weightComponents.reduce((s: number, c: any) => s + Number(c.weight), 0)) === 100
+                  ? "text-emerald-600" : "text-red-600"
+              )}>
+                Total: {weightComponents.reduce((s: number, c: any) => s + Number(c.weight), 0).toFixed(1)}%
+                {Math.round(weightComponents.reduce((s: number, c: any) => s + Number(c.weight), 0)) === 100 ? " ✓" : " (harus 100%)"}
+              </p>
+            </div>
+
+            <div className="space-y-3 mt-4">
+              {weightComponents.map((comp: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-3 border border-border rounded-lg bg-card">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {comp.name}
+                      {!comp.isDefault && (
+                        <span className="ml-2 text-[10px] text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full">
+                          Custom
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={comp.weight}
+                      onChange={e => {
+                        const updated = [...weightComponents];
+                        updated[i] = { ...updated[i], weight: Number(e.target.value) };
+                        setWeightComponents(updated);
+                      }}
+                      className="w-24 accent-violet-600"
+                    />
+                    <div className="flex items-center border border-input rounded-md overflow-hidden bg-background">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={comp.weight}
+                        onChange={e => {
+                          const updated = [...weightComponents];
+                          updated[i] = { ...updated[i], weight: Number(e.target.value) };
+                          setWeightComponents(updated);
+                        }}
+                        className="w-14 text-center text-sm p-1.5 bg-transparent border-0 outline-none"
+                      />
+                      <span className="pr-2 text-sm text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
+              <Button variant="secondary" onClick={() => setIsWeightModalOpen(false)}>Batal</Button>
+              <Button
+                onClick={handleSaveWeightConfig}
+                disabled={Math.round(weightComponents.reduce((s: number, c: any) => s + Number(c.weight), 0)) !== 100}
+              >
+                Simpan Konfigurasi
               </Button>
             </div>
           </div>
