@@ -110,6 +110,8 @@ const ALLOWED_MIMES = [
   "image/png",
   "application/zip",
   "application/x-zip-compressed",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  "application/vnd.ms-excel"                                           // .xls
 ];
 
 const upload = multer({
@@ -380,7 +382,15 @@ router.post("/generate", teacherGuard, async (req: any, res: Response) => {
       });
     }
 
-    const meetings = Math.min(Math.max(Number(totalMeetings), 1), 52);
+    // Validasi max 16 pertemuan
+if (Number(totalMeetings) > 16) {
+  return res.status(400).json({
+    success: false,
+    message: "Jumlah pertemuan tidak boleh lebih dari 16 per semester.",
+  });
+}
+
+const meetings = Math.min(Math.max(Number(totalMeetings), 1), 16);
 
     // Cek duplikat RPS
     const existing = await prisma.rPS.findFirst({
