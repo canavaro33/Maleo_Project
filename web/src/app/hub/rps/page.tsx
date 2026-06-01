@@ -197,9 +197,8 @@ export default function RpsPage() {
       toast.error("Silakan pilih Kelas target.");
       return;
     }
-    if (wizardStep === 4 && (!wizardForm.totalMeetings || wizardForm.totalMeetings < 1 || wizardForm.totalMeetings > 52)) {
-      toast.error("Jumlah pertemuan harus antara 1 sampai 52.");
-      return;
+    if (wizardStep === 4 && (!wizardForm.totalMeetings || wizardForm.totalMeetings < 1 || wizardForm.totalMeetings > 16)) {
+  toast.error("Jumlah pertemuan harus antara 1 sampai 16 per semester.");
     }
     setWizardStep(prev => prev + 1);
   };
@@ -842,14 +841,14 @@ export default function RpsPage() {
                 <h3 className="font-extrabold text-teal-950 text-base">Jumlah Pertemuan</h3>
                 <p className="text-xs text-muted-foreground">Jumlah tatap muka dalam semester (Standar: 16 pertemuan termasuk UTS & UAS).</p>
               </div>
-              <Input
-                id="wizardMeetings"
-                name="wizardMeetings"
+           <input
                 type="number"
-                min={1}
-                max={52}
+                min="1"
+                max="16"
+                placeholder="Contoh: 12"
+                className="w-full rounded-xl border border-teal-100 p-3 text-xs focus:ring-2 focus:ring-teal-500 transition-all"
                 value={wizardForm.totalMeetings}
-                onChange={(e) => setWizardForm({ ...wizardForm, totalMeetings: Number(e.target.value) })}
+                onChange={(e) => setWizardForm({...wizardForm, totalMeetings: parseInt(e.target.value) || 16})}
               />
             </div>
           )}
